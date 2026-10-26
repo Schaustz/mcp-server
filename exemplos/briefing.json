@@ -1,0 +1,14 @@
+{
+  "empresa": "Vitta Fit",
+  "segmento": "moda fitness",
+  "produto_ou_servico": "nova linha de leggings de alta compressão",
+  "objetivo_campanha": "vendas",
+  "orcamento_total": 100000,
+  "moeda": "BRL",
+  "duracao_dias": 30,
+  "regiao": "Campinas e região",
+  "ticket_medio": 180,
+  "margem_contribuicao_percentual": 40,
+  "concorrentes_conhecidos": [],
+  "observacoes": "marca nova, pouco conhecida"
+}

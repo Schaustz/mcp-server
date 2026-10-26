@@ -1,0 +1,33 @@
+{
+  "id_execucao": "EXEMPLO",
+  "agente_origem": "agente01_publico",
+  "agente_destino": "agente02_concorrencia",
+  "data_hora": "2026-10-25T14:00:00",
+  "status": "sucesso",
+  "entradas_usadas": [
+    "entrada/briefing.json"
+  ],
+  "dados": {
+    "aviso": "SAÍDA FALSA SÓ PARA TESTE — o Grupo 3 gera a real",
+    "publico_prioritario": {
+      "descricao": "mulheres de 22 a 40 anos, praticantes de academia e corrida, Campinas e região",
+      "dores": [
+        "legging que fica transparente",
+        "perde compressão rápido"
+      ],
+      "motivacoes": [
+        "conforto no treino",
+        "visual para usar fora da academia"
+      ]
+    },
+    "publicos_secundarios": [
+      "praticantes de yoga e pilates",
+      "personal trainers"
+    ]
+  },
+  "premissas": [
+    "público definido a partir do segmento e da região do briefing"
+  ],
+  "erros": [],
+  "observacoes": ""
+}

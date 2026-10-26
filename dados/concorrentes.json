@@ -1,0 +1,33 @@
+{
+  "tipo": "simulado",
+  "observacao": "Base fictícia de exemplo para teste. O Grupo 1 substitui pela versão oficial.",
+  "concorrentes": [
+    {
+      "nome": "Pulse Wear",
+      "tipo": "simulado",
+      "posicionamento": "preço baixo, vende em marketplace",
+      "faixa_preco": "R$ 70 a R$ 120",
+      "canais_principais": ["Instagram", "TikTok"],
+      "pontos_fortes": ["preço", "volume de anúncios"],
+      "pontos_fracos": ["qualidade do tecido", "pouca identidade de marca"]
+    },
+    {
+      "nome": "Corpo Ativo",
+      "tipo": "simulado",
+      "posicionamento": "marca regional premium, lojas físicas em Campinas",
+      "faixa_preco": "R$ 200 a R$ 280",
+      "canais_principais": ["Instagram", "Influenciadores"],
+      "pontos_fortes": ["qualidade", "comunidade local"],
+      "pontos_fracos": ["pouca presença em busca", "e-commerce fraco"]
+    },
+    {
+      "nome": "Flexa Sport",
+      "tipo": "simulado",
+      "posicionamento": "marca nacional focada em performance",
+      "faixa_preco": "R$ 150 a R$ 220",
+      "canais_principais": ["YouTube", "Google Pesquisa"],
+      "pontos_fortes": ["tecnologia do tecido", "conteúdo técnico"],
+      "pontos_fracos": ["comunicação fria", "pouco foco regional"]
+    }
+  ]
+}
