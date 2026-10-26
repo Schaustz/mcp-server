@@ -57,6 +57,8 @@ premissas (lista), erros (lista), observacoes (texto).
 - Nenhum dado pode ser apresentado como real: concorrentes e premissas são
   fictícios e marcados com "tipo": "simulado".
 - Receita não é lucro, e ROAS não é ROI.
+- O servidor recalcula os números do Simulador (05) e do Financeiro (06) e
+  recusa a saída se algum número não bater com o das ferramentas.
 - O plano final separa: dados do briefing, dados simulados, premissas e
   resultados calculados.
 

@@ -147,7 +147,7 @@ AGENTES = {
         "campos_obrigatorios": ["base_simulacao", "resultados_por_canal", "ranking_eficiencia", "leitura"],
         "formato_dados": {
             "base_simulacao": "por R$ 1.000 investidos em cada canal",
-            "resultados_por_canal": "copiar o resultado de simular_canais",
+            "resultados_por_canal": "copiar exatamente o resultados_por_canal de simular_canais",
             "ranking_eficiencia": [{"posicao": 1, "canal": "", "motivo": ""}],
             "leitura": [""],
         },
@@ -165,7 +165,8 @@ AGENTES = {
         "formato_dados": {
             "distribuicao": [{"canal": "", "percentual": 0, "valor": 0}],
             "total_distribuido": 0,
-            "projecao": "copiar o resultado de projetar_resultados",
+            "projecao": {"totais_por_cenario": "copiar exatamente de projetar_resultados "
+                                               "(pessimista, realista e otimista)"},
             "justificativa": [""],
         },
     },
@@ -249,7 +250,28 @@ def _canais_da_lista(itens: list, campo: str = "canal") -> list[str]:
     return nomes
 
 
-def _problemas_dados(numero_agente: int, dados: dict) -> list[str]:
+def _perto(a, b, tolerancia_rel=0.01, tolerancia_abs=1.0) -> bool:
+    try:
+        a, b = float(a), float(b)
+    except (TypeError, ValueError):
+        return False
+    return abs(a - b) <= max(tolerancia_abs, abs(b) * tolerancia_rel)
+
+
+def _conferir_numeros(rotulo: str, informado: dict, calculado: dict, campos: list[str]) -> list[str]:
+    """Compara números que o agente copiou com o que a ferramenta calcula."""
+    problemas = []
+    for campo in campos:
+        esperado = calculado.get(campo)
+        if esperado is None:
+            continue
+        if not _perto(informado.get(campo), esperado):
+            problemas.append(f"{rotulo}.{campo} = {informado.get(campo)}, a ferramenta calcula {esperado} "
+                             "(copie os números da ferramenta, não calcule)")
+    return problemas
+
+
+def _problemas_dados(numero_agente: int, dados: dict, id_execucao: str = ID_EXEMPLO) -> list[str]:
     """Regras específicas do campo 'dados' de cada agente."""
     ficha = AGENTES[numero_agente]
     problemas = [f"dados.{c} ausente" for c in ficha["campos_obrigatorios"] if c not in dados]
@@ -280,11 +302,54 @@ def _problemas_dados(numero_agente: int, dados: dict) -> list[str]:
         if invalidos:
             problemas.append(f"mensagens_por_canal com canal fora da lista: {invalidos}")
 
+    briefing = _briefing(id_execucao) or {}
+    ticket = briefing.get("ticket_medio") or None
+    campos_kpi = ["impressoes", "cliques", "engajamentos", "novos_seguidores", "conversoes", "receita"]
+
+    if numero_agente == 5:
+        res = dados["resultados_por_canal"]
+        if not isinstance(res, dict) or not res:
+            return ["resultados_por_canal deve ser o objeto devolvido por simular_canais"]
+        for canal, cenarios in res.items():
+            if canal not in CANAIS_SUPORTADOS:
+                problemas.append(f"resultados_por_canal com canal fora da lista: {canal}")
+                continue
+            if not isinstance(cenarios, dict) or any(c not in cenarios for c in CENARIOS):
+                problemas.append(f"{canal}: faltam os cenários {CENARIOS}")
+                continue
+            invest = cenarios["realista"].get("investimento", 1000)
+            calc = _simular(canal, float(invest), ticket)
+            for cen in CENARIOS:
+                problemas += _conferir_numeros(f"{canal}.{cen}", cenarios[cen], calc[cen], campos_kpi)
+
     if numero_agente == 6:
         dist = dados["distribuicao"]
-        total = round(sum(float(d.get("valor", 0)) for d in dist if isinstance(d, dict)), 2)
-        if abs(total - float(dados.get("total_distribuido", 0))) > 0.01:
+        if not isinstance(dist, list) or not dist:
+            return ["distribuicao deve ser a lista devolvida por calcular_distribuicao_orcamento"]
+        invalidos = [d.get("canal") for d in dist if d.get("canal") not in CANAIS_SUPORTADOS]
+        if invalidos:
+            problemas.append(f"distribuicao com canal fora da lista: {invalidos}")
+        total = round(sum(float(d.get("valor", 0)) for d in dist), 2)
+        if not _perto(dados.get("total_distribuido"), total, 0, 0.01):
             problemas.append("total_distribuido diferente da soma da distribuição")
+        orc = briefing.get("orcamento_total")
+        if orc and not _perto(total, orc, 0, 0.01):
+            problemas.append(f"a distribuição soma {total}, mas o orçamento é {orc}")
+        if orc:
+            for d in dist:
+                if not _perto(d.get("valor"), float(d.get("percentual", 0)) / 100 * orc, 0, 0.05):
+                    problemas.append(f"{d.get('canal')}: valor não bate com o percentual "
+                                     "(use calcular_distribuicao_orcamento)")
+        proj = dados.get("projecao")
+        totais = proj.get("totais_por_cenario") if isinstance(proj, dict) else None
+        if not isinstance(totais, dict) or any(c not in totais for c in CENARIOS):
+            problemas.append("projecao.totais_por_cenario deve ter os 3 cenários de projetar_resultados")
+        elif not invalidos and briefing:
+            calc = _projetar({d["canal"]: float(d["valor"]) for d in dist}, briefing)
+            for cen in CENARIOS:
+                problemas += _conferir_numeros(
+                    f"projecao.{cen}", totais[cen], calc["totais_por_cenario"][cen],
+                    ["investimento", "impressoes", "novos_seguidores", "conversoes", "receita", "roas"])
 
     return problemas
 
@@ -307,7 +372,9 @@ def _problemas_mensagem(mensagem: dict, numero_agente: int) -> list[str]:
     if mensagem.get("agente_origem") != esperado:
         problemas.append(f"agente_origem deve ser {esperado} (cada agente só grava a própria saída)")
     if mensagem.get("status") == "sucesso" and isinstance(mensagem.get("dados"), dict):
-        problemas += _problemas_dados(numero_agente, mensagem["dados"])
+        id_exec = mensagem.get("id_execucao")
+        id_exec = id_exec if isinstance(id_exec, str) and _id_valido(id_exec) else ID_EXEMPLO
+        problemas += _problemas_dados(numero_agente, mensagem["dados"], id_exec)
     return problemas
 
 
@@ -677,6 +744,10 @@ def projetar_resultados(valores_por_canal: dict[str, float],
     b = _briefing(id_execucao)
     if b is None:
         return {"erro": f"Nenhum briefing para {id_execucao}"}
+    return _projetar(valores_por_canal, b)
+
+
+def _projetar(valores_por_canal: dict[str, float], b: dict) -> dict:
     ticket = b.get("ticket_medio") or None
     margem = b.get("margem_contribuicao_percentual")
     investimento = round(sum(valores_por_canal.values()), 2)
