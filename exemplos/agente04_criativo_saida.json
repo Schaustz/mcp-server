@@ -1,0 +1,56 @@
+{
+  "id_execucao": "EXEMPLO",
+  "agente_origem": "agente04_criativo",
+  "agente_destino": "agente05_performance",
+  "data_hora": "2026-10-26T09:15:00",
+  "status": "sucesso",
+  "entradas_usadas": [
+    "briefing",
+    "saida agente01_publico",
+    "saida agente02_concorrencia",
+    "saida agente03_canais"
+  ],
+  "dados": {
+    "conceito_criativo": {
+      "nome": "Sua casa tem cheiro de quê?",
+      "ideia_central": "Cada ambiente e cada momento do dia merece um aroma feito à mão. A campanha convida o público a descobrir o cheiro da própria casa e mostra o ateliê por trás de cada vela.",
+      "tom_de_voz": "acolhedor, próximo e sensorial, sem exageros"
+    },
+    "mensagens_por_canal": [
+      {
+        "canal": "Instagram",
+        "formato": "Reels + carrossel + caixinha de perguntas nos Stories",
+        "titulo": "Sua casa tem cheiro de quê?",
+        "texto": "Fim do dia, luz baixa e aquele cheiro de casa que abraça. Aqui no ateliê cada vela é derramada à mão, com cera vegetal e óleos naturais. Conta pra gente: qual cheiro tem a sua casa? Os comentários mais criativos ganham um kit.",
+        "chamada_para_acao": "Siga o @lumeatelie e comente o cheiro da sua casa"
+      },
+      {
+        "canal": "Influenciadores",
+        "formato": "Reels de ritual noturno com criadoras de casa e lifestyle",
+        "titulo": "Meu ritual de fim de dia",
+        "texto": "A criadora mostra o próprio ritual para desacelerar: acende a vela, escolhe o incenso e conta por que trocou o aromatizador industrial por um artesanal. Cupom exclusivo para os seguidores dela.",
+        "chamada_para_acao": "Use o cupom e siga a Lume para ver os bastidores"
+      },
+      {
+        "canal": "TikTok",
+        "formato": "vídeo curto de bastidor (ASMR do processo)",
+        "titulo": "Do óleo à vela em 30 segundos",
+        "texto": "Cera derretendo, óleo de lavanda, pavio no lugar e a tampa fechando. Feito à mão, do jeito que a sua casa merece. Qual aroma a gente faz no próximo vídeo?",
+        "chamada_para_acao": "Siga para ver o próximo aroma"
+      },
+      {
+        "canal": "Google Pesquisa",
+        "formato": "anúncio de pesquisa",
+        "titulo": "Velas Artesanais Naturais",
+        "texto": "Velas, incensos e difusores feitos à mão em Campinas. Kits para presente. Envio para SP.",
+        "chamada_para_acao": "Compre na loja online"
+      }
+    ]
+  },
+  "premissas": [
+    "Mensagens criadas para o público e os canais definidos pelos agentes 01 e 03.",
+    "@lumeatelie é um perfil fictício."
+  ],
+  "erros": [],
+  "observacoes": "EXEMPLO OFICIAL — gerado para teste e apresentação. Dados fictícios."
+}

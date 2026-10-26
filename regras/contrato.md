@@ -86,3 +86,30 @@ mensagens por canal; canais escolhidos; distribuição do orçamento; KPIs nos
 cenários pessimista, realista e otimista; receita, ROAS e ROI (se houver
 margem); riscos; premissas e limitações, com o aviso
 "Simulação — não representa resultado real".
+
+## Ferramentas por agente
+- Todos: ler_regras_contrato, ler_ficha_agente (traz o formato exato da saída),
+  listar_canais_suportados, ler_briefing, ler_saida_agente, verificar_saida.
+- 01 Público: usa as ferramentas de todos.
+- 02 Concorrência: ler_concorrentes (filtra pelo segmento do briefing).
+- 03 Canais: ler_premissas_simulacao (custos de referência) e validar_canais
+  (2 a 5 canais da lista fechada).
+- 04 Criativo: verificar_mensagens_criativo (uma mensagem por canal escolhido
+  e limites de texto de referência).
+- 05 Simulador: ler_premissas_simulacao e simular_canais (resultado por
+  R$ 1.000 investidos, nos 3 cenários). O agente interpreta e ranqueia; os
+  números vêm da ferramenta.
+- 06 Financeiro: validar_distribuicao, calcular_distribuicao_orcamento e
+  projetar_resultados (receita, ROAS e ROI por cenário). O agente define os
+  percentuais; valores e KPIs vêm das ferramentas.
+- Orquestrador: registrar_briefing, validar_briefing, listar_execucoes e
+  validar_execucao (validações cruzadas do fluxo).
+
+## Exemplo oficial
+- id_execucao EXEMPLO: Lume Ateliê de Aromas (empresa fictícia de velas,
+  incensos e difusores artesanais), objetivo reconhecimento no Instagram.
+- O briefing e as saídas dos 6 agentes ficam fixos no servidor e nunca somem.
+- Testes com o id EXEMPLO são conferidos, mas não gravados no servidor:
+  o exemplo oficial nunca é alterado. A cópia local fica em saidas/.
+- Cada grupo desenvolve e testa o seu agente lendo as saídas anteriores do
+  EXEMPLO, sem depender de os outros grupos terem rodado.

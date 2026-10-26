@@ -1,0 +1,64 @@
+{
+  "id_execucao": "EXEMPLO",
+  "agente_origem": "agente03_canais",
+  "agente_destino": "agente04_criativo",
+  "data_hora": "2026-10-26T09:10:00",
+  "status": "sucesso",
+  "entradas_usadas": [
+    "briefing",
+    "saida agente01_publico",
+    "saida agente02_concorrencia",
+    "dados premissas_simulacao"
+  ],
+  "dados": {
+    "canais_escolhidos": [
+      {
+        "canal": "Instagram",
+        "prioridade": 1,
+        "papel": "canal principal de popularidade",
+        "justificativa": "É onde o público prioritário passa o dia e é o objetivo declarado do briefing: crescer seguidores e engajamento."
+      },
+      {
+        "canal": "Influenciadores",
+        "prioridade": 2,
+        "papel": "credibilidade e alcance qualificado",
+        "justificativa": "O público confia em criadoras de casa e lifestyle; tem a maior taxa de engajamento e de novos seguidores nas premissas."
+      },
+      {
+        "canal": "TikTok",
+        "prioridade": 3,
+        "papel": "alcance barato e conteúdo de bastidor",
+        "justificativa": "Menor CPM das premissas e bom engajamento; vídeos do processo artesanal combatem o industrial da Aroma Fácil."
+      },
+      {
+        "canal": "Google Pesquisa",
+        "prioridade": 4,
+        "papel": "capturar quem já procura presente ou vela",
+        "justificativa": "Maior taxa de conversão das premissas; transforma a popularidade em vendas na loja online."
+      }
+    ],
+    "canais_descartados": [
+      {
+        "canal": "Facebook",
+        "motivo": "Público prioritário está mais no Instagram; ficaria redundante com o orçamento dividido."
+      },
+      {
+        "canal": "YouTube",
+        "motivo": "Exige produção de vídeo mais longa e tem CTR baixo nas premissas."
+      },
+      {
+        "canal": "LinkedIn",
+        "motivo": "Rede profissional, fora do perfil de compra de aromas para casa."
+      },
+      {
+        "canal": "E-mail Marketing",
+        "motivo": "A base de contatos ainda é pequena; entra depois que os seguidores crescerem."
+      }
+    ]
+  },
+  "premissas": [
+    "Escolha baseada nas premissas fictícias de CPM, engajamento e conversão."
+  ],
+  "erros": [],
+  "observacoes": "EXEMPLO OFICIAL — gerado para teste e apresentação. Dados fictícios."
+}

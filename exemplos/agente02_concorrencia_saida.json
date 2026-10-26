@@ -1,0 +1,66 @@
+{
+  "id_execucao": "EXEMPLO",
+  "agente_origem": "agente02_concorrencia",
+  "agente_destino": "agente03_canais",
+  "data_hora": "2026-10-26T09:05:00",
+  "status": "sucesso",
+  "entradas_usadas": [
+    "briefing",
+    "saida agente01_publico",
+    "dados concorrentes"
+  ],
+  "dados": {
+    "concorrentes_analisados": [
+      {
+        "nome": "Chama Viva Velas",
+        "tipo": "simulado",
+        "posicionamento": "premium artesanal com forte estética no Instagram",
+        "ameaca": "alta",
+        "justificativa": "Disputa o mesmo público e já domina Instagram e influenciadoras de decoração; ponto fraco é o preço alto e a pouca interação com seguidores."
+      },
+      {
+        "nome": "Aroma Fácil",
+        "tipo": "simulado",
+        "posicionamento": "aromatizadores baratos e industrializados",
+        "ameaca": "media",
+        "justificativa": "Ganha no preço e no volume de vídeos no TikTok, mas não é artesanal e não tem história de marca."
+      },
+      {
+        "nome": "Ritual da Terra",
+        "tipo": "simulado",
+        "posicionamento": "incensos naturais para um nicho holístico",
+        "ameaca": "media",
+        "justificativa": "Concorre nos incensos e tem comunidade fiel, mas fala só com o nicho de meditação e não trabalha presentes."
+      },
+      {
+        "nome": "Essenza Lar",
+        "tipo": "simulado",
+        "posicionamento": "quiosques regionais de aromatizadores em shoppings",
+        "ameaca": "baixa",
+        "justificativa": "Tem presença física, mas o Instagram está parado e a comunicação é genérica."
+      }
+    ],
+    "lacunas_de_mercado": [
+      "Ninguém mostra o processo artesanal de forma próxima e constante no Instagram.",
+      "Falta uma marca artesanal com preço intermediário entre o barato industrial e o premium.",
+      "Kits de presente com aromas para cada momento do dia quase não aparecem na concorrência."
+    ],
+    "diferenciais_sugeridos": [
+      "Bastidores do ateliê: mostrar as mãos, a cera e os óleos naturais.",
+      "Preço intermediário, com kits a partir do ticket médio.",
+      "Responder e interagir com todos os comentários (fraqueza clara da concorrência premium).",
+      "Linha de rituais: aroma para acordar, para trabalhar e para dormir."
+    ],
+    "canais_mais_disputados": [
+      "Instagram",
+      "Influenciadores",
+      "TikTok"
+    ]
+  },
+  "premissas": [
+    "Base de concorrentes fictícia (tipo simulado).",
+    "Nível de ameaça estimado pela sobreposição de público e de canais."
+  ],
+  "erros": [],
+  "observacoes": "EXEMPLO OFICIAL — gerado para teste e apresentação. Dados fictícios."
+}

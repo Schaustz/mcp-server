@@ -1,10 +1,56 @@
 {
   "tipo": "simulado",
-  "observacao": "Base fictícia de exemplo para teste. O Grupo 1 substitui pela versão oficial.",
+  "versao": "0.2",
+  "observacao": "Base fictícia de concorrentes (Grupo 1). Nenhuma empresa aqui é real. Cada concorrente tem um 'segmento' para o agente filtrar.",
   "concorrentes": [
+    {
+      "nome": "Chama Viva Velas",
+      "tipo": "simulado",
+      "segmento": "casa e aromas artesanais",
+      "posicionamento": "marca premium de velas artesanais em potes de vidro reutilizáveis",
+      "faixa_preco": "R$ 110 a R$ 180",
+      "canais_principais": ["Instagram", "Influenciadores"],
+      "seguidores_instagram_aprox": 48000,
+      "pontos_fortes": ["fotos de produto muito bem produzidas", "parcerias com influenciadoras de decoração"],
+      "pontos_fracos": ["preço alto", "pouca variedade de incensos e difusores", "quase não responde comentários"]
+    },
+    {
+      "nome": "Aroma Fácil",
+      "tipo": "simulado",
+      "segmento": "casa e aromas artesanais",
+      "posicionamento": "aromatizadores baratos e industrializados, vendidos em marketplace",
+      "faixa_preco": "R$ 25 a R$ 60",
+      "canais_principais": ["TikTok", "Facebook"],
+      "seguidores_instagram_aprox": 12000,
+      "pontos_fortes": ["preço baixo", "entrega rápida", "muitos vídeos curtos de promoção"],
+      "pontos_fracos": ["produto não é artesanal", "fragrâncias artificiais", "nenhuma história de marca"]
+    },
+    {
+      "nome": "Essenza Lar",
+      "tipo": "simulado",
+      "segmento": "casa e aromas artesanais",
+      "posicionamento": "rede regional de quiosques de aromatizadores em shoppings",
+      "faixa_preco": "R$ 70 a R$ 150",
+      "canais_principais": ["Google Pesquisa", "Facebook", "E-mail Marketing"],
+      "seguidores_instagram_aprox": 9000,
+      "pontos_fortes": ["presença física em shoppings da região", "base de clientes para e-mail"],
+      "pontos_fracos": ["Instagram parado, com poucas postagens", "comunicação genérica, sem lado artesanal"]
+    },
+    {
+      "nome": "Ritual da Terra",
+      "tipo": "simulado",
+      "segmento": "casa e aromas artesanais",
+      "posicionamento": "incensos naturais e produtos para meditação, nicho holístico",
+      "faixa_preco": "R$ 20 a R$ 70",
+      "canais_principais": ["YouTube", "Instagram"],
+      "seguidores_instagram_aprox": 21000,
+      "pontos_fortes": ["comunidade fiel", "conteúdo educativo sobre ervas e rituais"],
+      "pontos_fracos": ["linguagem muito de nicho", "não trabalha velas decorativas nem presentes"]
+    },
     {
       "nome": "Pulse Wear",
       "tipo": "simulado",
+      "segmento": "moda fitness",
       "posicionamento": "preço baixo, vende em marketplace",
       "faixa_preco": "R$ 70 a R$ 120",
       "canais_principais": ["Instagram", "TikTok"],
@@ -14,20 +60,12 @@
     {
       "nome": "Corpo Ativo",
       "tipo": "simulado",
+      "segmento": "moda fitness",
       "posicionamento": "marca regional premium, lojas físicas em Campinas",
       "faixa_preco": "R$ 200 a R$ 280",
       "canais_principais": ["Instagram", "Influenciadores"],
       "pontos_fortes": ["qualidade", "comunidade local"],
       "pontos_fracos": ["pouca presença em busca", "e-commerce fraco"]
-    },
-    {
-      "nome": "Flexa Sport",
-      "tipo": "simulado",
-      "posicionamento": "marca nacional focada em performance",
-      "faixa_preco": "R$ 150 a R$ 220",
-      "canais_principais": ["YouTube", "Google Pesquisa"],
-      "pontos_fortes": ["tecnologia do tecido", "conteúdo técnico"],
-      "pontos_fracos": ["comunicação fria", "pouco foco regional"]
     }
   ]
 }

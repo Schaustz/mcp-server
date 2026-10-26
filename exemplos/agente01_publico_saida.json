@@ -2,32 +2,59 @@
   "id_execucao": "EXEMPLO",
   "agente_origem": "agente01_publico",
   "agente_destino": "agente02_concorrencia",
-  "data_hora": "2026-10-25T14:00:00",
+  "data_hora": "2026-10-26T09:00:00",
   "status": "sucesso",
   "entradas_usadas": [
-    "entrada/briefing.json"
+    "briefing"
   ],
   "dados": {
-    "aviso": "SAÍDA FALSA SÓ PARA TESTE — o Grupo 3 gera a real",
     "publico_prioritario": {
-      "descricao": "mulheres de 22 a 40 anos, praticantes de academia e corrida, Campinas e região",
+      "nome": "Cuidadoras do lar-refúgio",
+      "descricao": "Mulheres que tratam a casa como um lugar de descanso e gostam de criar um clima acolhedor com aromas, luz baixa e objetos com história.",
+      "faixa_etaria": "25 a 40 anos",
+      "genero_predominante": "feminino",
+      "regiao": "Campinas e região; interior de São Paulo",
+      "interesses": [
+        "decoração afetiva",
+        "autocuidado",
+        "plantas",
+        "produtos naturais",
+        "skincare",
+        "home office aconchegante"
+      ],
       "dores": [
-        "legging que fica transparente",
-        "perde compressão rápido"
+        "velas industriais com cheiro artificial e que dão dor de cabeça",
+        "dificuldade de achar presentes bonitos e com significado",
+        "não saber se o produto artesanal é de qualidade antes de comprar"
       ],
       "motivacoes": [
-        "conforto no treino",
-        "visual para usar fora da academia"
-      ]
+        "transformar a casa num refúgio depois do trabalho",
+        "consumir de pequenos produtores",
+        "ter rituais de relaxamento"
+      ],
+      "comportamento_digital": "Usa o Instagram todo dia, salva posts de decoração, assiste Reels e Stories, confia em indicações de criadoras de conteúdo de casa e lifestyle e compra pelo link da bio."
     },
     "publicos_secundarios": [
-      "praticantes de yoga e pilates",
-      "personal trainers"
+      {
+        "nome": "Quem compra para presentear",
+        "descricao": "Pessoas de 25 a 45 anos buscando presentes para datas comemorativas e amigo secreto.",
+        "por_que_importa": "Pico de demanda em datas como Natal e Dia das Mães; ticket por compra tende a ser maior."
+      },
+      {
+        "nome": "Praticantes de yoga e meditação",
+        "descricao": "Pessoas que usam incensos e velas em rituais de bem-estar.",
+        "por_que_importa": "Compram com recorrência e indicam para a própria comunidade."
+      }
+    ],
+    "insights": [
+      "O cheiro não aparece na tela: o conteúdo precisa vender a sensação (calma, aconchego) e o processo artesanal.",
+      "Mostrar as mãos fazendo a vela gera confiança e diferencia do industrial.",
+      "Presentes e kits são a porta de entrada para quem ainda não conhece a marca."
     ]
   },
   "premissas": [
-    "público definido a partir do segmento e da região do briefing"
+    "Público estimado a partir do segmento, da região e do objetivo do briefing; sem pesquisa real."
   ],
   "erros": [],
-  "observacoes": ""
+  "observacoes": "EXEMPLO OFICIAL — gerado para teste e apresentação. Dados fictícios."
 }

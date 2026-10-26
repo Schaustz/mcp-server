@@ -1,0 +1,102 @@
+{
+  "tipo": "simulado",
+  "versao": "rascunho 0.1",
+  "status": "RASCUNHO — o Grupo 2 deve revisar e validar estes valores",
+  "observacao": "Valores fictícios de referência, só para o simulador funcionar. Não representam dados reais de nenhuma plataforma.",
+  "moeda": "BRL",
+  "definicoes": {
+    "cpm": "custo em reais por mil impressões (no E-mail Marketing: por mil envios)",
+    "ctr_percentual": "% das impressões que viram clique",
+    "taxa_conversao_percentual": "% dos cliques que viram venda",
+    "taxa_engajamento_percentual": "% das impressões que viram curtida, comentário, salvamento ou compartilhamento",
+    "frequencia_media": "quantas vezes, em média, a mesma pessoa vê o anúncio (alcance = impressões / frequência)",
+    "taxa_seguidor_percentual": "% dos engajamentos que viram novo seguidor"
+  },
+  "canais": {
+    "Instagram": {
+      "cpm": 18.0,
+      "ctr_percentual": 1.0,
+      "taxa_conversao_percentual": 2.0,
+      "taxa_engajamento_percentual": 3.0,
+      "frequencia_media": 2.5,
+      "taxa_seguidor_percentual": 15.0
+    },
+    "Facebook": {
+      "cpm": 14.0,
+      "ctr_percentual": 0.9,
+      "taxa_conversao_percentual": 1.2,
+      "taxa_engajamento_percentual": 1.5,
+      "frequencia_media": 2.5,
+      "taxa_seguidor_percentual": 6.0
+    },
+    "Google Pesquisa": {
+      "cpm": 60.0,
+      "ctr_percentual": 4.0,
+      "taxa_conversao_percentual": 4.0,
+      "taxa_engajamento_percentual": 0.0,
+      "frequencia_media": 1.5,
+      "taxa_seguidor_percentual": 0.0
+    },
+    "YouTube": {
+      "cpm": 22.0,
+      "ctr_percentual": 0.5,
+      "taxa_conversao_percentual": 0.8,
+      "taxa_engajamento_percentual": 1.0,
+      "frequencia_media": 2.0,
+      "taxa_seguidor_percentual": 8.0
+    },
+    "TikTok": {
+      "cpm": 12.0,
+      "ctr_percentual": 0.8,
+      "taxa_conversao_percentual": 1.2,
+      "taxa_engajamento_percentual": 4.5,
+      "frequencia_media": 2.0,
+      "taxa_seguidor_percentual": 12.0
+    },
+    "LinkedIn": {
+      "cpm": 70.0,
+      "ctr_percentual": 0.6,
+      "taxa_conversao_percentual": 1.0,
+      "taxa_engajamento_percentual": 1.0,
+      "frequencia_media": 2.0,
+      "taxa_seguidor_percentual": 5.0
+    },
+    "E-mail Marketing": {
+      "cpm": 30.0,
+      "ctr_percentual": 2.5,
+      "taxa_conversao_percentual": 2.5,
+      "taxa_engajamento_percentual": 0.0,
+      "frequencia_media": 1.0,
+      "taxa_seguidor_percentual": 0.0
+    },
+    "Influenciadores": {
+      "cpm": 35.0,
+      "ctr_percentual": 1.5,
+      "taxa_conversao_percentual": 2.5,
+      "taxa_engajamento_percentual": 5.0,
+      "frequencia_media": 1.5,
+      "taxa_seguidor_percentual": 18.0
+    }
+  },
+  "cenarios": {
+    "pessimista": {
+      "multiplicador_taxas": 0.7,
+      "multiplicador_cpm": 1.2
+    },
+    "realista": {
+      "multiplicador_taxas": 1.0,
+      "multiplicador_cpm": 1.0
+    },
+    "otimista": {
+      "multiplicador_taxas": 1.3,
+      "multiplicador_cpm": 0.85
+    }
+  },
+  "regras_distribuicao": {
+    "minimo_canais": 2,
+    "maximo_canais": 5,
+    "percentual_minimo_por_canal": 5,
+    "percentual_maximo_por_canal": 50,
+    "observacao": "A soma da distribuição tem que fechar exatamente com o orcamento_total."
+  }
+}

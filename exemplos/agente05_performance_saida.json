@@ -1,0 +1,203 @@
+{
+  "id_execucao": "EXEMPLO",
+  "agente_origem": "agente05_performance",
+  "agente_destino": "agente06_financeiro",
+  "data_hora": "2026-10-26T09:20:00",
+  "status": "sucesso",
+  "entradas_usadas": [
+    "briefing",
+    "saida agente03_canais",
+    "saida agente04_criativo",
+    "dados premissas_simulacao"
+  ],
+  "dados": {
+    "base_simulacao": "por R$ 1.000 investidos em cada canal",
+    "resultados_por_canal": {
+      "Instagram": {
+        "pessimista": {
+          "investimento": 1000.0,
+          "impressoes": 46296,
+          "alcance": 18519,
+          "cliques": 324,
+          "engajamentos": 972,
+          "novos_seguidores": 102,
+          "conversoes": 4.5,
+          "cpc": 3.09,
+          "custo_por_seguidor": 9.8,
+          "receita": 431.02
+        },
+        "realista": {
+          "investimento": 1000.0,
+          "impressoes": 55556,
+          "alcance": 22222,
+          "cliques": 556,
+          "engajamentos": 1667,
+          "novos_seguidores": 250,
+          "conversoes": 11.1,
+          "cpc": 1.8,
+          "custo_por_seguidor": 4.0,
+          "receita": 1055.56
+        },
+        "otimista": {
+          "investimento": 1000.0,
+          "impressoes": 65359,
+          "alcance": 26144,
+          "cliques": 850,
+          "engajamentos": 2549,
+          "novos_seguidores": 497,
+          "conversoes": 22.1,
+          "cpc": 1.18,
+          "custo_por_seguidor": 2.01,
+          "receita": 2098.69
+        }
+      },
+      "Influenciadores": {
+        "pessimista": {
+          "investimento": 1000.0,
+          "impressoes": 23810,
+          "alcance": 15873,
+          "cliques": 250,
+          "engajamentos": 833,
+          "novos_seguidores": 105,
+          "conversoes": 4.4,
+          "cpc": 4.0,
+          "custo_por_seguidor": 9.52,
+          "receita": 415.62
+        },
+        "realista": {
+          "investimento": 1000.0,
+          "impressoes": 28571,
+          "alcance": 19048,
+          "cliques": 429,
+          "engajamentos": 1429,
+          "novos_seguidores": 257,
+          "conversoes": 10.7,
+          "cpc": 2.33,
+          "custo_por_seguidor": 3.89,
+          "receita": 1017.86
+        },
+        "otimista": {
+          "investimento": 1000.0,
+          "impressoes": 33613,
+          "alcance": 22409,
+          "cliques": 655,
+          "engajamentos": 2185,
+          "novos_seguidores": 511,
+          "conversoes": 21.3,
+          "cpc": 1.53,
+          "custo_por_seguidor": 1.96,
+          "receita": 2023.74
+        }
+      },
+      "TikTok": {
+        "pessimista": {
+          "investimento": 1000.0,
+          "impressoes": 69444,
+          "alcance": 34722,
+          "cliques": 389,
+          "engajamentos": 2188,
+          "novos_seguidores": 184,
+          "conversoes": 3.3,
+          "cpc": 2.57,
+          "custo_por_seguidor": 5.44,
+          "receita": 310.33
+        },
+        "realista": {
+          "investimento": 1000.0,
+          "impressoes": 83333,
+          "alcance": 41667,
+          "cliques": 667,
+          "engajamentos": 3750,
+          "novos_seguidores": 450,
+          "conversoes": 8.0,
+          "cpc": 1.5,
+          "custo_por_seguidor": 2.22,
+          "receita": 760.0
+        },
+        "otimista": {
+          "investimento": 1000.0,
+          "impressoes": 98039,
+          "alcance": 49020,
+          "cliques": 1020,
+          "engajamentos": 5735,
+          "novos_seguidores": 895,
+          "conversoes": 15.9,
+          "cpc": 0.98,
+          "custo_por_seguidor": 1.12,
+          "receita": 1511.06
+        }
+      },
+      "Google Pesquisa": {
+        "pessimista": {
+          "investimento": 1000.0,
+          "impressoes": 13889,
+          "alcance": 9259,
+          "cliques": 389,
+          "engajamentos": 0,
+          "novos_seguidores": 0,
+          "conversoes": 10.9,
+          "cpc": 2.57,
+          "custo_por_seguidor": null,
+          "receita": 1034.44
+        },
+        "realista": {
+          "investimento": 1000.0,
+          "impressoes": 16667,
+          "alcance": 11111,
+          "cliques": 667,
+          "engajamentos": 0,
+          "novos_seguidores": 0,
+          "conversoes": 26.7,
+          "cpc": 1.5,
+          "custo_por_seguidor": null,
+          "receita": 2533.33
+        },
+        "otimista": {
+          "investimento": 1000.0,
+          "impressoes": 19608,
+          "alcance": 13072,
+          "cliques": 1020,
+          "engajamentos": 0,
+          "novos_seguidores": 0,
+          "conversoes": 53.0,
+          "cpc": 0.98,
+          "custo_por_seguidor": null,
+          "receita": 5036.86
+        }
+      }
+    },
+    "ranking_eficiencia": [
+      {
+        "posicao": 1,
+        "canal": "TikTok",
+        "motivo": "menor custo por seguidor e alcance mais barato"
+      },
+      {
+        "posicao": 2,
+        "canal": "Influenciadores",
+        "motivo": "muitos seguidores por real e a maior taxa de engajamento, com a confiança da criadora"
+      },
+      {
+        "posicao": 3,
+        "canal": "Instagram",
+        "motivo": "equilíbrio entre seguidores, engajamento e vendas no canal principal"
+      },
+      {
+        "posicao": 4,
+        "canal": "Google Pesquisa",
+        "motivo": "não gera seguidores, mas tem a maior conversão em vendas"
+      }
+    ],
+    "leitura": [
+      "Como o objetivo é reconhecimento, o ranking usa o custo por novo seguidor no cenário realista.",
+      "Google Pesquisa fica por último em seguidores, mas é o que mais converte em vendas: entra com verba menor.",
+      "Todos os números vêm da ferramenta simular_canais e das premissas fictícias do Grupo 2."
+    ]
+  },
+  "premissas": [
+    "Premissas em rascunho (versão 0.1), ainda a validar pelo Grupo 2.",
+    "Simulação — não representa resultado real."
+  ],
+  "erros": [],
+  "observacoes": "EXEMPLO OFICIAL — gerado para teste e apresentação. Dados fictícios."
+}

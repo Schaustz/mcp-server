@@ -1,14 +1,14 @@
 {
-  "empresa": "Vitta Fit",
-  "segmento": "moda fitness",
-  "produto_ou_servico": "nova linha de leggings de alta compressão",
-  "objetivo_campanha": "vendas",
+  "empresa": "Lume Ateliê de Aromas",
+  "segmento": "casa e aromas artesanais",
+  "produto_ou_servico": "velas aromáticas, incensos naturais, difusores de varetas e sachês perfumados feitos à mão",
+  "objetivo_campanha": "reconhecimento",
   "orcamento_total": 100000,
   "moeda": "BRL",
   "duracao_dias": 30,
-  "regiao": "Campinas e região",
-  "ticket_medio": 180,
-  "margem_contribuicao_percentual": 40,
+  "regiao": "Campinas e região, com envio para todo o estado de São Paulo",
+  "ticket_medio": 95,
+  "margem_contribuicao_percentual": 55,
   "concorrentes_conhecidos": [],
-  "observacoes": "marca nova, pouco conhecida"
+  "observacoes": "Empresa fictícia (exemplo oficial do trabalho). Ateliê pequeno com loja online e presença em feiras de artesanato. Objetivo principal: aumentar a popularidade no Instagram (seguidores, alcance e engajamento). Objetivo secundário: transformar essa popularidade em vendas na loja online. Hoje tem cerca de 3 mil seguidores no Instagram."
 }

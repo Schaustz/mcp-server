@@ -30,6 +30,8 @@ async def main():
               "percentuais_por_canal": {"Instagram": 40, "Google Pesquisa": 35, "TikTok": 25}}),
             ("calcular_indicadores",
              {"investimento": 100000, "receita": 320000, "margem_contribuicao_percentual": 40}),
+            ("simular_canais", {"canais": ["Instagram", "TikTok"], "investimento_por_canal": 1000}),
+            ("validar_execucao", {"id_execucao": "EXEMPLO"}),
         ]
         for nome, args in testes:
             r = await mcp.call_tool(nome, args, raise_on_error=False)
