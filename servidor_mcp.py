@@ -37,7 +37,9 @@ from pathlib import Path
 
 from fastmcp import FastMCP
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from html import escape
+
+from starlette.responses import HTMLResponse, JSONResponse
 
 BASE = Path(__file__).resolve().parent
 PASTA_REGRAS = BASE / "regras"
@@ -528,6 +530,10 @@ def ler_saida_agente(numero_agente: int, id_execucao: str = ID_EXEMPLO) -> dict:
 def listar_execucoes() -> list[dict]:
     """[Orquestrador] Lista as execuções guardadas no servidor e quais agentes
     já gravaram saída em cada uma (o EXEMPLO sempre aparece)."""
+    return _listar_execucoes()
+
+
+def _listar_execucoes() -> list[dict]:
     resultado = [{"id_execucao": ID_EXEMPLO, "tem_briefing": True,
                   "agentes_concluidos": [n for n in AGENTES
                                          if (PASTA_EXEMPLOS / _arquivo_saida(n)).exists()]}]
@@ -810,6 +816,10 @@ def validar_execucao(id_execucao: str = ID_EXEMPLO) -> dict:
     todos os agentes com status sucesso; canais do 03 na lista; Criativo com
     mensagem para cada canal escolhido; Financeiro só com canais escolhidos e
     soma igual ao orcamento_total."""
+    return _validar_execucao(id_execucao)
+
+
+def _validar_execucao(id_execucao: str) -> dict:
     if not _id_valido(id_execucao):
         return {"erro": "id_execucao inválido"}
     b = _briefing(id_execucao)
@@ -858,7 +868,123 @@ async def pagina_inicial(request: Request) -> JSONResponse:
         "status": "no ar",
         "endpoint_mcp": "/mcp",
         "exemplo": "id_execucao EXEMPLO",
+        "painel": "/painel",
     })
+
+
+# ------------------------------------------------------------------ painel ---
+# Páginas só de leitura para acompanhar as execuções pelo navegador.
+
+_CSS = """
+:root{--bg:#f6f7f9;--card:#fff;--txt:#1d2330;--sub:#5d6575;--borda:#e1e4ea;
+--ok:#1f8a4c;--okbg:#e5f5ec;--erro:#b42318;--errobg:#fde8e7;--pend:#8a6a00;--pendbg:#fdf4d8;
+--link:#2b59c3;--code:#f1f3f6}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--card:#1d2128;--txt:#e7e9ee;--sub:#a0a7b4;
+--borda:#2e333c;--ok:#5fd394;--okbg:#173626;--erro:#ff8a80;--errobg:#3d1c1a;--pend:#f2c94c;
+--pendbg:#3a3112;--link:#8fb0ff;--code:#151920}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);
+font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:28px 0 10px}
+.sub{color:var(--sub);margin:0 0 20px}a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline}
+.card{background:var(--card);border:1px solid var(--borda);border-radius:10px;padding:14px 16px;margin:10px 0;overflow-x:auto}
+table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px 6px;
+border-bottom:1px solid var(--borda);vertical-align:top}th{color:var(--sub);font-weight:600;font-size:13px}
+.tag{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600}
+.sucesso{color:var(--ok);background:var(--okbg)}.erro{color:var(--erro);background:var(--errobg)}
+.pendente{color:var(--pend);background:var(--pendbg)}
+details{background:var(--card);border:1px solid var(--borda);border-radius:10px;margin:10px 0}
+summary{cursor:pointer;padding:12px 16px;font-weight:600}
+pre{margin:0;padding:12px 16px;background:var(--code);border-top:1px solid var(--borda);
+overflow-x:auto;font-size:12.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.chips span{margin-right:4px}.aviso{color:var(--sub);font-size:13px;margin-top:24px}
+"""
+
+
+def _pagina(titulo: str, corpo: str, atualizar: bool = False) -> HTMLResponse:
+    meta = '<meta http-equiv="refresh" content="10">' if atualizar else ""
+    return HTMLResponse(
+        f'<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
+        f'<meta name="viewport" content="width=device-width,initial-scale=1">{meta}'
+        f"<title>{escape(titulo)}</title><style>{_CSS}</style></head>"
+        f"<body><main>{corpo}<p class='aviso'>Simulação — não representa resultado real. "
+        f"Execuções reais somem quando o servidor fica 15 minutos sem uso.</p></main></body></html>")
+
+
+def _reais(valor) -> str:
+    try:
+        return f"{float(valor):,.0f}".replace(",", ".")
+    except (TypeError, ValueError):
+        return str(valor)
+
+
+def _tag(status: str) -> str:
+    status = status if status in ("sucesso", "erro") else "pendente"
+    return f'<span class="tag {status}">{status}</span>'
+
+
+@mcp.custom_route("/painel", methods=["GET"])
+async def painel(request: Request) -> HTMLResponse:
+    linhas = []
+    for e in reversed(_listar_execucoes()):
+        id_exec = e["id_execucao"]
+        chips = []
+        for n in AGENTES:
+            s = _saida(n, id_exec)
+            chips.append(f'<span title="{escape(AGENTES[n]["nome"])}">'
+                         f'{_tag(s.get("status") if s else "pendente").replace(">", f">{n:02d} ", 1)}</span>')
+        b = _briefing(id_exec) or {}
+        linhas.append(f'<tr><td><a href="/painel/{escape(id_exec)}">{escape(id_exec)}</a></td>'
+                      f'<td>{escape(str(b.get("empresa", "—")))}</td>'
+                      f'<td class="chips">{"".join(chips)}</td></tr>')
+    corpo = ("<h1>Marketing Campaign Commander</h1>"
+             "<p class='sub'>Execuções guardadas no servidor MCP. A página atualiza sozinha a cada 10 s.</p>"
+             "<div class='card'><table><tr><th>Execução</th><th>Empresa</th><th>Agentes</th></tr>"
+             + "".join(linhas) + "</table></div>")
+    return _pagina("Painel MCP", corpo, atualizar=True)
+
+
+@mcp.custom_route("/painel/{id_execucao}", methods=["GET"])
+async def painel_execucao(request: Request) -> HTMLResponse:
+    id_exec = request.path_params["id_execucao"]
+    b = _briefing(id_exec) if _id_valido(id_exec) else None
+    if b is None:
+        corpo = (f"<p><a href='/painel'>← Execuções</a></p><h1>{escape(id_exec)}</h1>"
+                 "<div class='card'>Execução não encontrada. Se ficou 15 minutos sem uso, o servidor "
+                 "apagou; abra outra com TESTES/abrir_execucao.py.</div>")
+        return _pagina(id_exec, corpo)
+
+    linhas, detalhes = [], []
+    for n, ficha in AGENTES.items():
+        s = _saida(n, id_exec)
+        status = s.get("status") if s else "pendente"
+        quando = escape(str(s.get("data_hora", "")).replace("T", " ")) if s else ""
+        linhas.append(f"<tr><td>{n:02d}</td><td>{escape(ficha['nome'])}</td>"
+                      f"<td>Grupo {escape(ficha['grupo'])}</td><td>{_tag(status)}</td><td>{quando}</td></tr>")
+        if s:
+            detalhes.append(f"<details><summary>{n:02d} · {escape(ficha['nome'])} {_tag(status)}</summary>"
+                            f"<pre>{escape(json.dumps(s, ensure_ascii=False, indent=2))}</pre></details>")
+
+    v = _validar_execucao(id_exec)
+    if v.get("valido"):
+        validacao = _tag("sucesso").replace("sucesso<", "tudo certo<")
+    elif v.get("problemas"):
+        validacao = "<br>".join(escape(p) for p in v["problemas"])
+    else:
+        validacao = f"incompleta — faltam: {escape(', '.join(v.get('pendentes', [])))}"
+
+    resumo = (f"<b>{escape(str(b.get('empresa', '')))}</b> · objetivo {escape(str(b.get('objetivo_campanha', '')))}"
+              f" · orçamento R$ {escape(_reais(b.get('orcamento_total')))} · {escape(str(b.get('duracao_dias', '')))} dias")
+    corpo = (f"<p><a href='/painel'>← Execuções</a></p><h1>{escape(id_exec)}</h1>"
+             f"<p class='sub'>{resumo}. <a href='/painel/{escape(id_exec)}'>Atualizar</a></p>"
+             "<div class='card'><table><tr><th>Nº</th><th>Agente</th><th>Grupo</th><th>Status</th>"
+             "<th>Gravado em</th></tr>" + "".join(linhas) + "</table></div>"
+             f"<div class='card'><b>Validação cruzada:</b> {validacao}</div>"
+             "<h2>Saídas gravadas</h2>" + ("".join(detalhes) or "<div class='card'>Nenhuma ainda.</div>")
+             + f"<details><summary>Briefing</summary><pre>{escape(json.dumps(b, ensure_ascii=False, indent=2))}"
+             "</pre></details>")
+    return _pagina(id_exec, corpo)
 
 
 if __name__ == "__main__":
