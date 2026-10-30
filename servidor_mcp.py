@@ -981,10 +981,47 @@ async def painel_execucao(request: Request) -> HTMLResponse:
              "<div class='card'><table><tr><th>Nº</th><th>Agente</th><th>Grupo</th><th>Status</th>"
              "<th>Gravado em</th></tr>" + "".join(linhas) + "</table></div>"
              f"<div class='card'><b>Validação cruzada:</b> {validacao}</div>"
-             "<h2>Saídas gravadas</h2>" + ("".join(detalhes) or "<div class='card'>Nenhuma ainda.</div>")
+             + (f"<div class='card'><b>Relatório final:</b> <a href='/relatorio/{escape(id_exec)}'>abrir o "
+                "relatório</a></div>" if (PASTA_ARMAZENAMENTO / id_exec / "relatorio_final.html").exists()
+                else "<div class='card'><b>Relatório final:</b> ainda não publicado pelo Orquestrador.</div>")
+             + "<h2>Saídas gravadas</h2>" + ("".join(detalhes) or "<div class='card'>Nenhuma ainda.</div>")
              + f"<details><summary>Briefing</summary><pre>{escape(json.dumps(b, ensure_ascii=False, indent=2))}"
              "</pre></details>")
     return _pagina(id_exec, corpo)
+
+
+# --------------------------------------------------------- relatório final ---
+# O Orquestrador publica o relatório (POST) e cada pessoa baixa (GET).
+# Não é uma ferramenta MCP, para o Gemini dos agentes não enxergar.
+
+TAMANHO_MAX_RELATORIO = 3 * 1024 * 1024
+
+
+@mcp.custom_route("/relatorio/{id_execucao}", methods=["GET"])
+async def ver_relatorio(request: Request) -> HTMLResponse:
+    id_exec = request.path_params["id_execucao"]
+    arq = PASTA_ARMAZENAMENTO / id_exec / "relatorio_final.html" if _id_valido(id_exec) else None
+    if arq is None or not arq.exists():
+        corpo = (f"<p><a href='/painel'>← Execuções</a></p><h1>{escape(id_exec)}</h1>"
+                 "<div class='card'>O relatório desta execução ainda não foi publicado. Ele aparece "
+                 "aqui quando o Orquestrador terminar.</div>")
+        resp = _pagina(id_exec, corpo)
+        resp.status_code = 404
+        return resp
+    return HTMLResponse(arq.read_text(encoding="utf-8"))
+
+
+@mcp.custom_route("/relatorio/{id_execucao}", methods=["POST"])
+async def publicar_relatorio(request: Request) -> JSONResponse:
+    id_exec = request.path_params["id_execucao"]
+    if not _id_valido(id_exec) or id_exec == ID_EXEMPLO or _briefing(id_exec) is None:
+        return JSONResponse({"publicado": False, "erro": "execução não encontrada"}, status_code=404)
+    corpo = await request.body()
+    if not corpo or len(corpo) > TAMANHO_MAX_RELATORIO:
+        return JSONResponse({"publicado": False, "erro": "relatório vazio ou grande demais"},
+                            status_code=400)
+    (PASTA_ARMAZENAMENTO / id_exec / "relatorio_final.html").write_bytes(corpo)
+    return JSONResponse({"publicado": True, "url": f"/relatorio/{id_exec}"})
 
 
 if __name__ == "__main__":
