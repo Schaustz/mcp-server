@@ -901,7 +901,7 @@ details{background:var(--card);border:1px solid var(--borda);border-radius:10px;
 summary{cursor:pointer;padding:12px 16px;font-weight:600}
 pre{margin:0;padding:12px 16px;background:var(--code);border-top:1px solid var(--borda);
 overflow-x:auto;font-size:12.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
-.chips span{margin-right:4px}.botao{display:inline-block;background:var(--link);color:#fff;padding:8px 16px;border-radius:8px;font-weight:600}.botao:hover{text-decoration:none;opacity:.9}label{display:block;font-weight:600;margin:12px 0 4px}input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--borda);border-radius:8px;background:var(--card);color:var(--txt);font:inherit}textarea{min-height:70px}.duas{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:600px){.duas{grid-template-columns:1fr}}.erro-box{color:var(--erro);background:var(--errobg);border-radius:8px;padding:10px 14px}.log{font:12.5px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap}.aviso{color:var(--sub);font-size:13px;margin-top:24px}
+.chips span{margin-right:4px}.botao{display:inline-block;background:#2b59c3;color:#fff;padding:8px 16px;border-radius:8px;font-weight:600}.botao:hover{text-decoration:none;opacity:.9}label{display:block;font-weight:600;margin:12px 0 4px}input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--borda);border-radius:8px;background:var(--card);color:var(--txt);font:inherit}textarea{min-height:70px}.duas{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:600px){.duas{grid-template-columns:1fr}}.erro-box{color:var(--erro);background:var(--errobg);border-radius:8px;padding:10px 14px}.dica{color:var(--sub);font-size:13px;margin:4px 0 0;line-height:1.45}.dica b{color:var(--txt)}.log{font:12.5px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap}.aviso{color:var(--sub);font-size:13px;margin-top:24px}
 """
 
 
@@ -1233,6 +1233,11 @@ async def _executar_rodada(id_exec: str, modo: str) -> None:
         _RODADAS.pop(id_exec, None)
 
 
+def _dica(texto: str) -> str:
+    """Texto de ajuda embaixo de um campo do formulário (HTML fixo, escrito aqui)."""
+    return f"<p class='dica'>{texto}</p>"
+
+
 def _form_briefing(b: dict, erros: list[str] | None = None, codigo: str = "") -> HTMLResponse:
     def v(k):
         return escape(str(b.get(k, "") if b.get(k) is not None else ""))
@@ -1253,21 +1258,44 @@ def _form_briefing(b: dict, erros: list[str] | None = None, codigo: str = "") ->
         + (", ".join(f"{n:02d} {AGENTES[n]['nome']}" for n in faltam) or "nenhum") + "</div>"
         "<form method='post' action='/painel/novo' class='card'>"
         f"<label>Empresa</label><input name='empresa' required value='{v('empresa')}'>"
-        f"<label>Segmento</label><input name='segmento' value='{v('segmento')}'>"
-        f"<label>Produto ou serviço</label><textarea name='produto_ou_servico' required>{v('produto_ou_servico')}</textarea>"
+        + _dica("O nome da empresa fictícia. Ex.: <b>Lume Ateliê de Aromas</b>, <b>Vitta Fit</b>.")
+        + f"<label>Segmento</label><input name='segmento' value='{v('segmento')}'>"
+        + _dica("Em que mercado ela atua, em poucas palavras. Ex.: <b>moda fitness</b>, <b>bar e eventos</b>, "
+                "<b>casa e aromas artesanais</b>. O agente de Concorrência usa isso para achar os concorrentes.")
+        + f"<label>Produto ou serviço</label><textarea name='produto_ou_servico' required>{v('produto_ou_servico')}</textarea>"
+        + _dica("O que a campanha vai divulgar. Ex.: <b>chopp artesanal para festas e eventos</b>.")
+        +
         "<div class='duas'><div><label>Objetivo</label><select name='objetivo_campanha'>"
         f"<option value='reconhecimento'{sel('reconhecimento')}>reconhecimento</option>"
         f"<option value='vendas'{sel('vendas')}>vendas</option>"
-        f"<option value='leads'{sel('leads')}>leads</option></select></div>"
-        f"<div><label>Região</label><input name='regiao' value='{v('regiao')}'></div>"
-        f"<div><label>Orçamento total (R$)</label><input name='orcamento_total' type='number' min='1' step='1' required value='{v('orcamento_total')}'></div>"
-        f"<div><label>Duração (dias)</label><input name='duracao_dias' type='number' min='1' required value='{v('duracao_dias')}'></div>"
-        f"<div><label>Ticket médio (R$)</label><input name='ticket_medio' type='number' min='0' step='0.01' value='{v('ticket_medio')}'></div>"
-        f"<div><label>Margem de contribuição (%)</label><input name='margem_contribuicao_percentual' type='number' min='0' max='100' step='0.1' value='{v('margem_contribuicao_percentual')}'></div></div>"
-        f"<label>Observações</label><textarea name='observacoes'>{v('observacoes')}</textarea>"
+        f"<option value='leads'{sel('leads')}>leads</option></select>"
+        + _dica("<b>reconhecimento</b>: ficar conhecido (seguidores, alcance). <b>vendas</b>: vender mais "
+                "(pede o ticket médio). <b>leads</b>: conseguir contatos de interessados (orçamentos, cadastros).")
+        + f"</div><div><label>Região</label><input name='regiao' value='{v('regiao')}'>"
+        + _dica("Onde a campanha vai rodar. Ex.: <b>Campinas e região</b>, <b>todo o Brasil</b>.")
+        + f"</div><div><label>Orçamento total (R$)</label><input name='orcamento_total' type='number' min='1' step='1' required value='{v('orcamento_total')}'>"
+        + _dica("Quanto a empresa vai investir na campanha inteira. O padrão do trabalho é <b>100000</b>.")
+        + f"</div><div><label>Duração (dias)</label><input name='duracao_dias' type='number' min='1' required value='{v('duracao_dias')}'>"
+        + _dica("Quantos dias a campanha fica no ar. Ex.: <b>30</b>.")
+        + f"</div><div><label>Ticket médio (R$)</label><input name='ticket_medio' type='number' min='0' step='0.01' value='{v('ticket_medio')}'>"
+        + _dica("Quanto <b>cada cliente gasta, em média, por compra</b>. Não sabe? Use o <b>preço do produto "
+                "mais vendido</b>, ou divida o faturamento do mês pelo número de vendas (ex.: R$ 9.500 ÷ 100 "
+                "vendas = <b>95</b>). Obrigatório quando o objetivo é vendas; serve para calcular a receita.")
+        + f"</div><div><label>Margem de contribuição (%)</label><input name='margem_contribuicao_percentual' type='number' min='0' max='100' step='0.1' value='{v('margem_contribuicao_percentual')}'>"
+        + _dica("Quanto <b>sobra de cada venda</b> depois de pagar o que custou para fazer ou comprar o "
+                "produto, em %. Conta: (preço − custo) ÷ preço × 100. Ex.: a vela vende por R$ 95 e custa "
+                "R$ 43 → sobram R$ 52 → 52 ÷ 95 ≈ <b>55</b>. Não sabe? Use um valor típico: <b>30</b> para "
+                "revenda, <b>50</b> a <b>60</b> para produto artesanal, <b>70</b> para serviço. Pode deixar "
+                "em branco: o relatório só não calcula o ROI.")
+        + "</div></div>"
+        + f"<label>Observações</label><textarea name='observacoes'>{v('observacoes')}</textarea>"
+        + _dica("Qualquer detalhe que ajude os agentes: situação atual, público que já compra, o que "
+                "a empresa quer evitar. Ex.: <b>marca nova, tem 3 mil seguidores no Instagram</b>.")
+        +
         "<label>Agentes que ainda não estão no servidor</label><select name='modo'>"
         "<option value='exemplo'>Usar a saída do exemplo no lugar (só funciona com o briefing da Lume)</option>"
         "<option value='esperar'>Esperar os grupos rodarem no PC deles (participar.py)</option></select>"
+        + _dica("Com outra empresa, escolha <b>esperar os grupos</b>: o exemplo só combina com a Lume.")
         + (f"<label>Código de acesso</label><input name='codigo' type='password' value='{escape(codigo)}' required>"
            if os.environ.get("CODIGO_ACESSO") else "")
         + "<p><button class='botao' type='submit' style='border:0;cursor:pointer'>Rodar</button></p></form>")
