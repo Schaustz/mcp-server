@@ -29,9 +29,12 @@ Ferramentas por agente
                validar_execucao, gravar_saida (usada pelo script de cada agente)
 """
 
+import asyncio
 import json
 import os
 import re
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -39,7 +42,7 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from html import escape
 
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 BASE = Path(__file__).resolve().parent
 PASTA_REGRAS = BASE / "regras"
@@ -898,7 +901,7 @@ details{background:var(--card);border:1px solid var(--borda);border-radius:10px;
 summary{cursor:pointer;padding:12px 16px;font-weight:600}
 pre{margin:0;padding:12px 16px;background:var(--code);border-top:1px solid var(--borda);
 overflow-x:auto;font-size:12.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
-.chips span{margin-right:4px}.aviso{color:var(--sub);font-size:13px;margin-top:24px}
+.chips span{margin-right:4px}.botao{display:inline-block;background:var(--link);color:#fff;padding:8px 16px;border-radius:8px;font-weight:600}.botao:hover{text-decoration:none;opacity:.9}label{display:block;font-weight:600;margin:12px 0 4px}input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--borda);border-radius:8px;background:var(--card);color:var(--txt);font:inherit}textarea{min-height:70px}.duas{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:600px){.duas{grid-template-columns:1fr}}.erro-box{color:var(--erro);background:var(--errobg);border-radius:8px;padding:10px 14px}.log{font:12.5px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap}.aviso{color:var(--sub);font-size:13px;margin-top:24px}
 """
 
 
@@ -940,6 +943,7 @@ async def painel(request: Request) -> HTMLResponse:
                       f'<td class="chips">{"".join(chips)}</td></tr>')
     corpo = ("<h1>Marketing Campaign Commander</h1>"
              "<p class='sub'>Execuções guardadas no servidor MCP. A página atualiza sozinha a cada 10 s.</p>"
+             "<p><a class='botao' href='/painel/novo'>+ Nova rodada no servidor</a></p>"
              "<div class='card'><table><tr><th>Execução</th><th>Empresa</th><th>Agentes</th></tr>"
              + "".join(linhas) + "</table></div>")
     return _pagina("Painel MCP", corpo, atualizar=True)
@@ -948,6 +952,8 @@ async def painel(request: Request) -> HTMLResponse:
 @mcp.custom_route("/painel/{id_execucao}", methods=["GET"])
 async def painel_execucao(request: Request) -> HTMLResponse:
     id_exec = request.path_params["id_execucao"]
+    if id_exec == "novo":
+        return await nova_rodada_form(request)
     b = _briefing(id_exec) if _id_valido(id_exec) else None
     if b is None:
         corpo = (f"<p><a href='/painel'>← Execuções</a></p><h1>{escape(id_exec)}</h1>"
@@ -980,14 +986,27 @@ async def painel_execucao(request: Request) -> HTMLResponse:
              f"<p class='sub'>{resumo}. <a href='/painel/{escape(id_exec)}'>Atualizar</a></p>"
              "<div class='card'><table><tr><th>Nº</th><th>Agente</th><th>Grupo</th><th>Status</th>"
              "<th>Gravado em</th></tr>" + "".join(linhas) + "</table></div>"
-             f"<div class='card'><b>Validação cruzada:</b> {validacao}</div>"
+             + _bloco_rodada(id_exec)
+             + f"<div class='card'><b>Validação cruzada:</b> {validacao}</div>"
              + (f"<div class='card'><b>Relatório final:</b> <a href='/relatorio/{escape(id_exec)}'>abrir o "
                 "relatório</a></div>" if (PASTA_ARMAZENAMENTO / id_exec / "relatorio_final.html").exists()
                 else "<div class='card'><b>Relatório final:</b> ainda não publicado pelo Orquestrador.</div>")
              + "<h2>Saídas gravadas</h2>" + ("".join(detalhes) or "<div class='card'>Nenhuma ainda.</div>")
              + f"<details><summary>Briefing</summary><pre>{escape(json.dumps(b, ensure_ascii=False, indent=2))}"
              "</pre></details>")
-    return _pagina(id_exec, corpo)
+    est = _estado(id_exec)
+    return _pagina(id_exec, corpo, atualizar=bool(est and est.get("estado") == "rodando"))
+
+
+def _bloco_rodada(id_exec: str) -> str:
+    est = _estado(id_exec)
+    if not est:
+        return ""
+    rotulo = {"rodando": "rodando no servidor (a página atualiza sozinha)", "concluida": "concluída",
+              "parcial": "parcial (o fluxo parou antes do fim)", "erro": "erro"}.get(est.get("estado"), "")
+    log = "\n".join(est.get("log", [])[-60:])
+    return (f"<div class='card'><b>Rodada no servidor:</b> {escape(rotulo)}"
+            f"<details open><summary>Registro</summary><pre class='log'>{escape(log)}</pre></details></div>")
 
 
 # --------------------------------------------------------- relatório final ---
@@ -1022,6 +1041,293 @@ async def publicar_relatorio(request: Request) -> JSONResponse:
                             status_code=400)
     (PASTA_ARMAZENAMENTO / id_exec / "relatorio_final.html").write_bytes(corpo)
     return JSONResponse({"publicado": True, "url": f"/relatorio/{id_exec}"})
+
+
+# ------------------------------------------------------ rodada no servidor ---
+# Roda o fluxo inteiro dentro do servidor, a partir de um formulário no painel.
+# Agentes que estão em agentes/GRUPO_X/ rodam aqui (com a GEMINI_API_KEY do
+# Render). Os que não estão: ou usam o exemplo no lugar, ou o servidor espera
+# o participar.py do grupo rodar no PC dele.
+
+PASTA_AGENTES = BASE / "agentes"
+SCRIPTS = {
+    1: "GRUPO_3/agente01_publico.py", 2: "GRUPO_1/agente02_concorrencia.py",
+    3: "GRUPO_1/agente03_canais.py", 4: "GRUPO_3/agente04_criativo.py",
+    5: "GRUPO_2/agente05_performance.py", 6: "GRUPO_2/agente06_financeiro.py",
+}
+ESPERA_REMOTA_MIN = 45
+_RODADAS: dict[str, asyncio.Task] = {}
+
+
+def _agentes_no_servidor() -> list[int]:
+    return [n for n, s in SCRIPTS.items() if (PASTA_AGENTES / s).exists()]
+
+
+def _estado(id_exec: str) -> dict | None:
+    return _ler_json(PASTA_ARMAZENAMENTO / id_exec / "execucao.json") if _id_valido(id_exec) else None
+
+
+def _salvar_estado(id_exec: str, est: dict) -> None:
+    (PASTA_ARMAZENAMENTO / id_exec / "execucao.json").write_text(
+        json.dumps(est, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _log_rodada(id_exec: str, est: dict, texto: str) -> None:
+    est["log"].append(f"{datetime.now().strftime('%H:%M:%S')}  {texto}")
+    est["log"] = est["log"][-300:]
+    _salvar_estado(id_exec, est)
+
+
+def _gravar_interno(id_exec: str, n: int, mensagem: dict) -> list[str]:
+    problemas = _problemas_mensagem(mensagem, n)
+    if not problemas:
+        (PASTA_ARMAZENAMENTO / id_exec / _arquivo_saida(n)).write_text(
+            json.dumps(mensagem, ensure_ascii=False, indent=2), encoding="utf-8")
+    return problemas
+
+
+def _status(n: int, id_exec: str) -> str:
+    s = _saida(n, id_exec)
+    return s.get("status", "pendente") if s else "pendente"
+
+
+async def _rodar_script(id_exec: str, n: int, est: dict) -> str:
+    env = dict(os.environ)
+    env["MCP_URL"] = f"http://127.0.0.1:{int(os.environ.get('PORT', 8000))}/mcp"
+    env["PYTHONIOENCODING"] = "utf-8"
+    st = "pendente"
+    for tentativa in (1, 2):
+        _log_rodada(id_exec, est, f"[{n:02d}] rodando {SCRIPTS[n]} (tentativa {tentativa})")
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, str(PASTA_AGENTES / SCRIPTS[n]), "--id", id_exec,
+            cwd=str(PASTA_AGENTES), env=env,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        try:
+            saida, _ = await asyncio.wait_for(proc.communicate(), timeout=15 * 60)
+        except asyncio.TimeoutError:
+            proc.kill()
+            saida = b"tempo esgotado (15 min)"
+        for linha in saida.decode("utf-8", "replace").splitlines():
+            if any(k in linha for k in ("Gemini chamou", "ocupado", "Servidor", "tentativa", "correção",
+                                        "Error", "Erro", "erro")):
+                _log_rodada(id_exec, est, f"     {linha.strip()[:220]}")
+        st = _status(n, id_exec)
+        _log_rodada(id_exec, est, f"[{n:02d}] status: {st}")
+        if st == "sucesso":
+            break
+    return st
+
+
+async def _aguardar_remoto(id_exec: str, n: int, est: dict) -> str:
+    _log_rodada(id_exec, est, f"[{n:02d}] {AGENTES[n]['nome']}: aguardando o grupo {AGENTES[n]['grupo']} "
+                              f"rodar no PC dele (participar.py {id_exec})")
+    inicio = time.time()
+    while True:
+        st = _status(n, id_exec)
+        if st in ("sucesso", "erro"):
+            _log_rodada(id_exec, est, f"[{n:02d}] status: {st}")
+            return st
+        if (time.time() - inicio) / 60 > ESPERA_REMOTA_MIN:
+            _log_rodada(id_exec, est, f"[{n:02d}] tempo de espera esgotado")
+            return "tempo esgotado"
+        await asyncio.sleep(10)
+
+
+def _leitura_executiva(briefing: dict, saidas: dict) -> dict | None:
+    """Resumo executivo, recomendações e riscos em texto (os números vêm das ferramentas)."""
+    if not os.environ.get("GEMINI_API_KEY"):
+        return None
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError:
+        return None
+    dados = {f"{n:02d}_{AGENTES[n]['nome']}": (saidas.get(n) or {}).get("dados") for n in AGENTES}
+    prompt = (
+        "Você é o diretor de estratégia do Marketing Campaign Commander. Abaixo estão o briefing e as "
+        "saídas dos 6 agentes de uma campanha SIMULADA (dados fictícios).\n"
+        "Escreva em português, para o cliente, SOMENTE um JSON com:\n"
+        '{"resumo_executivo": "4 a 6 frases resumindo a estratégia e o resultado esperado", '
+        '"recomendacoes": ["3 a 5 próximos passos práticos"], "riscos": ["2 a 3 riscos da estratégia"]}\n'
+        "Use apenas números que aparecem nos dados (cenário realista quando citar resultado). "
+        "Não invente números, marcas ou empresas reais. Deixe claro que é uma simulação.\n\n"
+        f"BRIEFING:\n{json.dumps(briefing, ensure_ascii=False)}\n\n"
+        f"SAÍDAS DOS AGENTES:\n{json.dumps(dados, ensure_ascii=False)}")
+    cliente = genai.Client()
+    modelos = list(dict.fromkeys([os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite"),
+                                  "gemini-3-flash-preview", "gemini-3.8-flash"]))
+    for modelo in modelos:
+        for espera in (5, 15, None):
+            try:
+                r = cliente.models.generate_content(
+                    model=modelo, contents=prompt,
+                    config=types.GenerateContentConfig(temperature=0.4, response_mime_type="application/json"))
+                texto = json.loads(r.text)
+                if isinstance(texto, dict) and texto.get("resumo_executivo"):
+                    return texto
+                break
+            except Exception as e:
+                if getattr(e, "code", None) in (429, 503) and espera:
+                    time.sleep(espera)
+                    continue
+                break
+    return None
+
+
+async def _executar_rodada(id_exec: str, modo: str) -> None:
+    import relatorio
+    no_servidor = _agentes_no_servidor()
+    est = {"estado": "rodando", "modo": modo, "inicio": datetime.now().isoformat(timespec="seconds"),
+           "no_servidor": no_servidor, "substitutos": [], "parcial": None, "log": []}
+    _salvar_estado(id_exec, est)
+    _log_rodada(id_exec, est, "Rodada iniciada no servidor. Agentes no servidor: "
+                + (", ".join(f"{n:02d}" for n in no_servidor) or "nenhum"))
+    try:
+        for n in AGENTES:
+            nome = AGENTES[n]["nome"]
+            if n in no_servidor:
+                st = await _rodar_script(id_exec, n, est)
+            elif modo == "exemplo":
+                s = _saida(n, ID_EXEMPLO)
+                if s is None:
+                    st = "erro"
+                else:
+                    s = dict(s)
+                    s["id_execucao"] = id_exec
+                    s["observacoes"] = "SUBSTITUTO: saída do EXEMPLO (agente ainda não está no servidor)."
+                    problemas = _gravar_interno(id_exec, n, s)
+                    if problemas:
+                        _log_rodada(id_exec, est, f"[{n:02d}] o exemplo não serve para este briefing: "
+                                                  f"{problemas[:2]}")
+                        st = "erro"
+                    else:
+                        est["substitutos"].append(n)
+                        _log_rodada(id_exec, est, f"[{n:02d}] {nome}: usando a saída do exemplo no lugar")
+                        st = "sucesso"
+            else:
+                st = await _aguardar_remoto(id_exec, n, est)
+            if st != "sucesso":
+                est["parcial"] = n
+                _log_rodada(id_exec, est, f"Fluxo interrompido no agente {n:02d} ({nome}).")
+                break
+
+        v = _validar_execucao(id_exec)
+        validacao = ("tudo certo" if v.get("valido") else "; ".join(v.get("problemas") or [])
+                     or "incompleta (faltam: " + ", ".join(v.get("pendentes", [])) + ")")
+        _log_rodada(id_exec, est, f"Validação cruzada: {validacao}")
+        briefing = _briefing(id_exec)
+        saidas = {n: _saida(n, id_exec) for n in AGENTES if _saida(n, id_exec)}
+        leitura = None
+        if not est["parcial"]:
+            _log_rodada(id_exec, est, "Pedindo ao Gemini a leitura executiva do relatório...")
+            leitura = await asyncio.to_thread(_leitura_executiva, briefing, saidas)
+        meta = {"id_execucao": id_exec, "substitutos": est["substitutos"], "validacao": validacao,
+                "parcial": est["parcial"]}
+        await asyncio.to_thread(relatorio.salvar, PASTA_ARMAZENAMENTO / id_exec, briefing, saidas, meta, leitura)
+        est["estado"] = "parcial" if est["parcial"] else "concluida"
+        _log_rodada(id_exec, est, "Relatório final pronto.")
+    except Exception as e:  # nunca deixa a rodada "rodando" para sempre
+        est["estado"] = "erro"
+        _log_rodada(id_exec, est, f"Erro inesperado: {type(e).__name__}: {e}")
+    finally:
+        _RODADAS.pop(id_exec, None)
+
+
+def _form_briefing(b: dict, erros: list[str] | None = None, codigo: str = "") -> HTMLResponse:
+    def v(k):
+        return escape(str(b.get(k, "") if b.get(k) is not None else ""))
+    no_servidor = _agentes_no_servidor()
+    faltam = [n for n in AGENTES if n not in no_servidor]
+    sel = lambda o: " selected" if b.get("objetivo_campanha") == o else ""
+    aviso_chave = ("" if os.environ.get("GEMINI_API_KEY") else
+                   "<div class='erro-box'>A GEMINI_API_KEY ainda não foi configurada no Render: os agentes "
+                   "do servidor não vão conseguir rodar.</div>")
+    corpo = (
+        "<p><a href='/painel'>← Execuções</a></p><h1>Nova rodada no servidor</h1>"
+        "<p class='sub'>Preencha o briefing e o servidor roda o fluxo inteiro e monta o relatório final. "
+        "Já vem preenchido com o exemplo da Lume Ateliê.</p>" + aviso_chave
+        + ("<div class='erro-box'>" + "<br>".join(escape(e) for e in erros) + "</div>" if erros else "")
+        + "<div class='card'><b>Agentes no servidor:</b> "
+        + (", ".join(f"{n:02d} {AGENTES[n]['nome']}" for n in no_servidor) or "nenhum")
+        + "<br><b>Ainda não estão no servidor:</b> "
+        + (", ".join(f"{n:02d} {AGENTES[n]['nome']}" for n in faltam) or "nenhum") + "</div>"
+        "<form method='post' action='/painel/novo' class='card'>"
+        f"<label>Empresa</label><input name='empresa' required value='{v('empresa')}'>"
+        f"<label>Segmento</label><input name='segmento' value='{v('segmento')}'>"
+        f"<label>Produto ou serviço</label><textarea name='produto_ou_servico' required>{v('produto_ou_servico')}</textarea>"
+        "<div class='duas'><div><label>Objetivo</label><select name='objetivo_campanha'>"
+        f"<option value='reconhecimento'{sel('reconhecimento')}>reconhecimento</option>"
+        f"<option value='vendas'{sel('vendas')}>vendas</option>"
+        f"<option value='leads'{sel('leads')}>leads</option></select></div>"
+        f"<div><label>Região</label><input name='regiao' value='{v('regiao')}'></div>"
+        f"<div><label>Orçamento total (R$)</label><input name='orcamento_total' type='number' min='1' step='1' required value='{v('orcamento_total')}'></div>"
+        f"<div><label>Duração (dias)</label><input name='duracao_dias' type='number' min='1' required value='{v('duracao_dias')}'></div>"
+        f"<div><label>Ticket médio (R$)</label><input name='ticket_medio' type='number' min='0' step='0.01' value='{v('ticket_medio')}'></div>"
+        f"<div><label>Margem de contribuição (%)</label><input name='margem_contribuicao_percentual' type='number' min='0' max='100' step='0.1' value='{v('margem_contribuicao_percentual')}'></div></div>"
+        f"<label>Observações</label><textarea name='observacoes'>{v('observacoes')}</textarea>"
+        "<label>Agentes que ainda não estão no servidor</label><select name='modo'>"
+        "<option value='exemplo'>Usar a saída do exemplo no lugar (só funciona com o briefing da Lume)</option>"
+        "<option value='esperar'>Esperar os grupos rodarem no PC deles (participar.py)</option></select>"
+        + (f"<label>Código de acesso</label><input name='codigo' type='password' value='{escape(codigo)}' required>"
+           if os.environ.get("CODIGO_ACESSO") else "")
+        + "<p><button class='botao' type='submit' style='border:0;cursor:pointer'>Rodar</button></p></form>")
+    return _pagina("Nova rodada", corpo)
+
+
+@mcp.custom_route("/painel/novo", methods=["GET"])
+async def nova_rodada_form(request: Request) -> HTMLResponse:
+    return _form_briefing(_ler_json(PASTA_EXEMPLOS / "briefing.json") or {})
+
+
+@mcp.custom_route("/painel/novo", methods=["POST"])
+async def nova_rodada(request: Request):
+    form = await request.form()
+
+    def num(campo, tipo=float):
+        txt = str(form.get(campo, "")).strip().replace(",", ".")
+        if not txt:
+            return None
+        try:
+            return tipo(float(txt))
+        except ValueError:
+            return None
+
+    b = {
+        "empresa": str(form.get("empresa", "")).strip(),
+        "segmento": str(form.get("segmento", "")).strip(),
+        "produto_ou_servico": str(form.get("produto_ou_servico", "")).strip(),
+        "objetivo_campanha": str(form.get("objetivo_campanha", "")).strip(),
+        "orcamento_total": num("orcamento_total", int),
+        "moeda": "BRL",
+        "duracao_dias": num("duracao_dias", int),
+        "regiao": str(form.get("regiao", "")).strip(),
+        "ticket_medio": num("ticket_medio"),
+        "margem_contribuicao_percentual": num("margem_contribuicao_percentual"),
+        "concorrentes_conhecidos": [],
+        "observacoes": str(form.get("observacoes", "")).strip(),
+    }
+    codigo = str(form.get("codigo", ""))
+    modo = "esperar" if form.get("modo") == "esperar" else "exemplo"
+    erros = _problemas_briefing(b)
+    if os.environ.get("CODIGO_ACESSO") and codigo != os.environ["CODIGO_ACESSO"]:
+        erros.append("Código de acesso incorreto.")
+    if _agentes_no_servidor() and not os.environ.get("GEMINI_API_KEY"):
+        erros.append("A GEMINI_API_KEY não está configurada no Render.")
+    if any(not t.done() for t in _RODADAS.values()):
+        erros.append("Já existe uma rodada em andamento no servidor. Espere ela terminar.")
+    if erros:
+        return _form_briefing(b, erros, codigo)
+
+    # mesma forma de gravar que o exemplo usa (números inteiros onde der)
+    for k in ("ticket_medio", "margem_contribuicao_percentual"):
+        if isinstance(b[k], float) and b[k].is_integer():
+            b[k] = int(b[k])
+    id_exec = datetime.now().strftime("EXEC-%Y%m%d-%H%M%S")
+    pasta = PASTA_ARMAZENAMENTO / id_exec
+    pasta.mkdir(parents=True, exist_ok=True)
+    (pasta / "briefing.json").write_text(json.dumps(b, ensure_ascii=False, indent=2), encoding="utf-8")
+    _RODADAS[id_exec] = asyncio.create_task(_executar_rodada(id_exec, modo))
+    return RedirectResponse(f"/painel/{id_exec}", status_code=303)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,290 @@
+"""
+Agente 03 — Canais (Grupo 1: Gustavo e Matheus)
+===============================================
+
+Decide ONDE anunciar: lê o briefing, o público (01), a concorrência (02) e as
+premissas de custo por canal no servidor MCP, e escolhe de 2 a 5 canais da
+lista fechada, com prioridade e papel de cada um, para o Agente 04 (Criativo).
+
+Rodar a partir de 01_PROJETO:
+    python GRUPO_1/agente03_canais.py                    (teste no EXEMPLO)
+    python GRUPO_1/agente03_canais.py --id EXEC-...      (Orquestrador)
+    python GRUPO_1/agente03_canais.py --pedido "priorize vendas"
+
+Variáveis de ambiente: GEMINI_API_KEY (obrigatória), GEMINI_MODEL e MCP_URL
+(opcionais).
+"""
+
+import argparse
+import asyncio
+import json
+import os
+import re
+from datetime import datetime
+from pathlib import Path
+
+from fastmcp import Client
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types
+
+# ======================= CONFIGURAÇÃO DO AGENTE (troque aqui) ===============
+
+NUMERO_AGENTE = 3  # 1 Público, 2 Concorrência, 3 Canais, 4 Criativo, 5 Simulador, 6 Financeiro
+
+PERSONA = """Você é o Agente de Canais do sistema Marketing Campaign Commander:
+um estrategista de mídia digital pragmático, que monta o mix de canais olhando
+para três coisas ao mesmo tempo: onde o público realmente está, o que o
+objetivo da campanha pede e quanto cada canal custa. Você prefere poucos
+canais bem usados a muitos canais com verba picada."""
+
+INSTRUCOES = """- Leia o briefing, a saída do Agente 01 (público) e a do Agente 02
+  (concorrência). Use ler_premissas_simulacao para ver CPM, CTR, conversão,
+  engajamento e taxa de seguidores de cada canal, e as regras de distribuição.
+- Escolha de 2 a 5 canais, SÓ da lista de listar_canais_suportados, com os
+  nomes escritos exatamente como na lista.
+- Critérios, nesta ordem:
+  1. Objetivo: "reconhecimento" pede alcance, engajamento e seguidores;
+     "vendas" e "leads" pedem CTR e conversão.
+  2. Público: o comportamento_digital do Agente 01 (onde ele passa o tempo).
+  3. Concorrência: nos canais_mais_disputados, entre só se a empresa tiver um
+     diferencial para disputar; use as lacunas para achar espaço.
+  4. Custo: compare os valores das premissas, sem fazer contas (contas são do
+     Simulador e do Financeiro).
+- canais_escolhidos: prioridade 1, 2, 3... sem repetir; "papel" em poucas
+  palavras (ex.: "canal principal de popularidade"); justificativa citando o
+  objetivo, o público e o valor de premissa que pesou na escolha.
+- canais_descartados: TODOS os outros canais da lista, cada um com o motivo.
+- Antes de responder, chame validar_canais com os canais escolhidos e só
+  responda quando estiver válido.
+- Não defina percentuais nem valores em reais: isso é do Agente 06."""
+
+# ======================= daqui para baixo é igual para todos ================
+
+RAIZ = Path(__file__).resolve().parent.parent          # 01_PROJETO
+MCP_URL = os.environ.get("MCP_URL", "https://mcp-campaign-commander.onrender.com/mcp")
+MODELO = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+# Se o modelo principal estiver sobrecarregado, o agente passa para o próximo
+# da fila (todos grátis). Repetidos são ignorados.
+MODELOS = list(dict.fromkeys([MODELO, "gemini-3-flash-preview", "gemini-3.8-flash"]))
+MAX_RODADAS = 12
+ESPERAS_SOBRECARGA = [5, 15]  # segundos, antes de trocar de modelo
+MAX_TENTATIVAS = 2            # erros inesperados (ex.: rede): tenta mais uma vez
+SO_SCRIPT = {"gravar_saida", "registrar_briefing"}  # o Gemini não recebe estas
+
+TAREFA = """Execução: {id_execucao}
+Você é o agente {numero:02d} ({nome}). Sua missão: {missao}
+
+Passos:
+1. Chame ler_regras_contrato e ler_briefing(id_execucao="{id_execucao}").
+2. Leia as saídas dos agentes anteriores com ler_saida_agente(numero_agente=N,
+   id_execucao="{id_execucao}"). Você lê: {le}.
+3. Use as ferramentas recomendadas para o seu papel: {ferramentas}.
+Peça várias ferramentas DE UMA VEZ na mesma resposta sempre que der.
+
+Instruções específicas:
+{instrucoes}
+{pedido}
+Contas (somas, porcentagens, KPIs, dinheiro) são feitas SÓ pelas ferramentas.
+Nunca invente números que as ferramentas não deram.
+
+Responda SOMENTE com um JSON válido, sem texto antes ou depois, com os campos
+abaixo (o que é texto entre aspas é só modelo). Campos obrigatórios:
+{obrigatorios}. Inclua também "premissas": lista com as suposições que você fez.
+{formato}"""
+
+
+class ModeloSobrecarregado(Exception):
+    """O Google continuou respondendo 503/429 depois das esperas."""
+
+
+def extrair_json(texto: str) -> dict:
+    """Aceita a resposta com ou sem bloco ```json."""
+    texto = (texto or "").strip()
+    bloco = re.search(r"```(?:json)?\s*(.*?)```", texto, re.DOTALL)
+    if bloco:
+        texto = bloco.group(1)
+    dados = json.loads(texto)
+    if not isinstance(dados, dict):
+        raise ValueError("a resposta precisa ser um objeto JSON")
+    return dados
+
+
+def resultado_da_ferramenta(r) -> dict:
+    """Converte o retorno de uma ferramenta MCP num dict."""
+    if r.is_error:
+        return {"erro": r.content[0].text if r.content else "erro na ferramenta"}
+    if r.structured_content is not None:
+        return r.structured_content
+    texto = r.content[0].text if r.content else ""
+    try:
+        return {"resultado": json.loads(texto)}
+    except json.JSONDecodeError:
+        return {"resultado": texto}
+
+
+async def ferramenta(mcp: Client, nome: str, args: dict) -> dict:
+    return resultado_da_ferramenta(await mcp.call_tool(nome, args, raise_on_error=False))
+
+
+async def perguntar_ao_gemini(gemini, modelo, historico, config):
+    """Chama o Gemini; se estiver sobrecarregado (503/429), espera e repete."""
+    for espera in ESPERAS_SOBRECARGA + [None]:
+        try:
+            return await gemini.aio.models.generate_content(
+                model=modelo, contents=historico, config=config)
+        except genai_errors.APIError as e:
+            if e.code not in (429, 503):
+                raise
+            if espera is None:
+                raise ModeloSobrecarregado(f"{modelo} ocupado (erro {e.code})") from e
+            print(f"  (Gemini ocupado, erro {e.code}; tentando de novo em {espera}s)")
+            await asyncio.sleep(espera)
+
+
+async def chamar_gemini(mcp, id_execucao, modelo, ficha, pedido) -> dict:
+    """Loop de ferramentas: o Gemini pede, o script executa no servidor MCP e
+    devolve o resultado, até o Gemini responder o JSON final."""
+    gemini = genai.Client()  # lê GEMINI_API_KEY do ambiente
+    ferramentas = [f for f in await mcp.list_tools() if f.name not in SO_SCRIPT]
+    config = types.GenerateContentConfig(
+        system_instruction=PERSONA,
+        temperature=0.4,
+        tools=[types.Tool(function_declarations=[
+            types.FunctionDeclaration(
+                name=f.name,
+                description=f.description,
+                parameters_json_schema=getattr(f, "input_schema", None) or f.inputSchema,
+            )
+            for f in ferramentas
+        ])],
+    )
+    tarefa = TAREFA.format(
+        id_execucao=id_execucao, numero=NUMERO_AGENTE, nome=ficha["nome"],
+        missao=ficha["missao"], le=", ".join(ficha["le"]),
+        ferramentas=", ".join(ficha["ferramentas_recomendadas"]),
+        instrucoes=INSTRUCOES,
+        pedido=f"\nPedido extra de quem está rodando: {pedido}\n" if pedido else "",
+        obrigatorios=", ".join(ficha["campos_obrigatorios"]),
+        formato=json.dumps(ficha["formato_dados"], ensure_ascii=False, indent=2),
+    )
+    historico = [types.Content(role="user", parts=[types.Part(text=tarefa)])]
+
+    correcoes = 1  # contrato: resposta inválida -> uma nova chance
+    for _ in range(MAX_RODADAS):
+        resposta = await perguntar_ao_gemini(gemini, modelo, historico, config)
+        chamadas = resposta.function_calls
+        if not chamadas:
+            # Resposta final: confere o JSON e o formato no servidor
+            try:
+                dados = extrair_json(resposta.text)
+                mensagem = montar_mensagem(id_execucao, ficha, "sucesso", dados, [])
+                v = await ferramenta(mcp, "verificar_saida",
+                                     {"numero_agente": NUMERO_AGENTE, "mensagem": mensagem})
+                problemas = [] if v.get("valido") else v.get("problemas", [str(v)])
+            except ValueError as e:  # inclui JSON inválido
+                problemas = [f"JSON inválido: {e}"]
+            if not problemas:
+                return dados
+            if correcoes == 0:
+                raise ValueError(f"saída fora do formato: {problemas}")
+            correcoes -= 1
+            print(f"  (resposta fora do formato, pedindo correção: {problemas})")
+            historico.append(resposta.candidates[0].content)
+            historico.append(types.Content(role="user", parts=[types.Part(text=(
+                "Sua resposta não passou na verificação do contrato. Problemas: "
+                f"{problemas}. Corrija e responda de novo SOMENTE com o JSON completo."))]))
+            continue
+
+        historico.append(resposta.candidates[0].content)
+        partes = []
+        for chamada in chamadas:
+            args = dict(chamada.args or {})
+            print(f"  -> Gemini chamou {chamada.name}({args})")
+            partes.append(types.Part.from_function_response(
+                name=chamada.name, response=await ferramenta(mcp, chamada.name, args)))
+        historico.append(types.Content(role="user", parts=partes))
+
+    raise RuntimeError(f"Gemini não terminou em {MAX_RODADAS} rodadas")
+
+
+def montar_mensagem(id_execucao, ficha, status, dados, erros) -> dict:
+    dados = dict(dados or {})
+    premissas = dados.pop("premissas", [])
+    if not isinstance(premissas, list):
+        premissas = [str(premissas)]
+    return {
+        "id_execucao": id_execucao,
+        "agente_origem": ficha["chave"],
+        "agente_destino": ficha["entrega_para"],
+        "data_hora": datetime.now().isoformat(timespec="seconds"),
+        "status": status,
+        "entradas_usadas": ficha["le"],
+        "dados": dados,
+        "premissas": premissas,
+        "erros": erros,
+        "observacoes": "",
+    }
+
+
+async def entregar(mcp: Client, mensagem: dict, ficha: dict) -> None:
+    """Grava no servidor (mesa compartilhada) e guarda cópia local."""
+    r = await ferramenta(mcp, "gravar_saida", {
+        "id_execucao": mensagem["id_execucao"],
+        "numero_agente": NUMERO_AGENTE,
+        "mensagem": mensagem,
+    })
+    if r.get("gravado"):
+        print(f"Servidor: saída gravada em {r['arquivo']}")
+    elif r.get("teste_aprovado"):
+        print(f"Servidor: {r['aviso']}")
+    else:
+        print(f"Servidor recusou a saída: {r.get('problemas') or r}")
+
+    pasta = RAIZ / "saidas"
+    pasta.mkdir(exist_ok=True)
+    arquivo = pasta / ficha["arquivo_saida"]
+    arquivo.write_text(json.dumps(mensagem, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"Cópia local: {arquivo.relative_to(RAIZ)}")
+
+
+async def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--id", default="EXEMPLO",
+                        help="id_execucao vindo do Orquestrador (padrão: EXEMPLO)")
+    parser.add_argument("--pedido", default="",
+                        help="instrução extra para esta execução")
+    args = parser.parse_args()
+    id_execucao = args.id
+
+    print(f"Conectando em {MCP_URL} (no plano grátis, a 1ª conexão pode levar ~1 min)")
+    # timeout alto porque o servidor grátis "dorme" e demora para acordar
+    async with Client(MCP_URL, timeout=120, init_timeout=120) as mcp:
+        ficha = await ferramenta(mcp, "ler_ficha_agente", {"numero_agente": NUMERO_AGENTE})
+        if "erro" in ficha:
+            raise SystemExit(f"Ficha do agente não encontrada: {ficha['erro']}")
+        print(f"Agente {NUMERO_AGENTE:02d} — {ficha['nome']} | execução {id_execucao}")
+
+        erros, fila, tentativas = [], list(MODELOS), 0
+        while fila and tentativas < MAX_TENTATIVAS:
+            modelo = fila[0]
+            print(f"Usando o modelo {modelo}")
+            try:
+                dados = await chamar_gemini(mcp, id_execucao, modelo, ficha, args.pedido)
+                await entregar(mcp, montar_mensagem(id_execucao, ficha, "sucesso", dados, []), ficha)
+                return
+            except ModeloSobrecarregado as e:
+                # Sobrecarga do Google não conta como tentativa: troca de modelo
+                erros.append(str(e))
+                print(f"  {e}; trocando de modelo")
+                fila.pop(0)
+            except Exception as e:
+                tentativas += 1
+                erros.append(f"tentativa {tentativas} ({modelo}): {type(e).__name__}: {e}")
+                print(erros[-1])
+
+        await entregar(mcp, montar_mensagem(id_execucao, ficha, "erro", {}, erros), ficha)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

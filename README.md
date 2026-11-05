@@ -70,6 +70,25 @@ dos 6 agentes ficam fixos em `exemplos/` e nunca somem. Testes com o id
 Os números do Simulador (05) e do Financeiro (06) foram calculados pelas
 próprias ferramentas do servidor, com as premissas em rascunho.
 
+## Rodada no servidor (sem precisar de PC)
+
+Em `/painel/novo` há um formulário de briefing. Ao clicar em **Rodar**, o
+servidor abre a execução e roda o fluxo inteiro sozinho:
+
+- agentes que estão em `agentes/GRUPO_X/` rodam dentro do servidor;
+- os que ainda não estão: usam a saída do exemplo no lugar (só com o
+  briefing da Lume) **ou** o servidor espera o grupo rodar o `participar.py`
+  no PC dele, conforme a opção escolhida no formulário;
+- no fim, o relatório final fica em `/relatorio/EXEC-...`.
+
+Configuração no Render (aba **Environment** do serviço):
+- `GEMINI_API_KEY`: chave do Gemini usada pelos agentes do servidor;
+- `CODIGO_ACESSO`: senha pedida no formulário (evita que qualquer pessoa
+  com o link gaste a cota do Gemini).
+
+Para colocar o agente de outro grupo no servidor, suba o arquivo em
+`agentes/GRUPO_X/` com o nome do contrato (ex.: `agentes/GRUPO_3/agente01_publico.py`).
+
 ## Atualizar
 
 Edite ou suba o arquivo no GitHub. O Render publica sozinho a cada commit
