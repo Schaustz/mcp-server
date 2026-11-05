@@ -1611,20 +1611,20 @@ def _form_briefing(b: dict, erros: list[str] | None = None, codigo: str = "") ->
                    "do servidor não vão conseguir rodar.</div>")
     corpo = (
         "<p><a href='/painel'>← Execuções</a></p><h1>Nova rodada no servidor</h1>"
-        "<p class='sub'>Preencha o briefing e o servidor roda o fluxo inteiro e monta o relatório final. "
-        "Já vem preenchido com o exemplo da Lume Ateliê.</p>" + aviso_chave
+        "<p class='sub'>Preencha o briefing da empresa que você quiser e o servidor roda o fluxo inteiro "
+        "e monta o relatório final.</p>" + aviso_chave
         + ("<div class='erro-box'>" + "<br>".join(escape(e) for e in erros) + "</div>" if erros else "")
         + "<div class='card'><b>Agentes no servidor:</b> "
         + (", ".join(f"{n:02d} {AGENTES[n]['nome']}" for n in no_servidor) or "nenhum")
         + "<br><b>Ainda não estão no servidor:</b> "
         + (", ".join(f"{n:02d} {AGENTES[n]['nome']}" for n in faltam) or "nenhum") + "</div>"
         "<form method='post' action='/painel/novo' class='card'>"
-        f"<label>Empresa</label><input name='empresa' required value='{v('empresa')}'>"
-        + _dica("O nome da empresa fictícia. Ex.: <b>Lume Ateliê de Aromas</b>, <b>Vitta Fit</b>.")
-        + f"<label>Segmento</label><input name='segmento' value='{v('segmento')}'>"
+        f"<label>Empresa</label><input name='empresa' required value='{v('empresa')}' placeholder='Ex.: Vitta Fit'>"
+        + _dica("O nome da empresa da campanha. Ex.: <b>Vitta Fit</b>, <b>Sabor da Serra</b>.")
+        + f"<label>Segmento</label><input name='segmento' value='{v('segmento')}' placeholder='Ex.: moda fitness'>"
         + _dica("Em que mercado ela atua, em poucas palavras. Ex.: <b>moda fitness</b>, <b>bar e eventos</b>, "
-                "<b>casa e aromas artesanais</b>. O agente de Concorrência usa isso para achar os concorrentes.")
-        + f"<label>Produto ou serviço</label><textarea name='produto_ou_servico' required>{v('produto_ou_servico')}</textarea>"
+                "<b>pizzaria delivery</b>. O agente de Concorrência usa isso para achar os concorrentes.")
+        + f"<label>Produto ou serviço</label><textarea name='produto_ou_servico' required placeholder='Ex.: roupas de academia femininas, com loja online'>{v('produto_ou_servico')}</textarea>"
         + _dica("O que a campanha vai divulgar. Ex.: <b>chopp artesanal para festas e eventos</b>.")
         +
         "<div class='duas'><div><label>Objetivo</label><select name='objetivo_campanha'>"
@@ -1633,7 +1633,7 @@ def _form_briefing(b: dict, erros: list[str] | None = None, codigo: str = "") ->
         f"<option value='leads'{sel('leads')}>leads</option></select>"
         + _dica("<b>reconhecimento</b>: ficar conhecido (seguidores, alcance). <b>vendas</b>: vender mais "
                 "(pede o ticket médio). <b>leads</b>: conseguir contatos de interessados (orçamentos, cadastros).")
-        + f"</div><div><label>Região</label><input name='regiao' value='{v('regiao')}'>"
+        + f"</div><div><label>Região</label><input name='regiao' value='{v('regiao')}' placeholder='Ex.: Campinas e região'>"
         + _dica("Onde a campanha vai rodar. Ex.: <b>Campinas e região</b>, <b>todo o Brasil</b>.")
         + f"</div><div><label>Orçamento total (R$)</label><input name='orcamento_total' type='number' min='1' step='1' required value='{v('orcamento_total')}'>"
         + _dica("Quanto a empresa vai investir na campanha inteira. O padrão do trabalho é <b>100000</b>.")
@@ -1645,19 +1645,19 @@ def _form_briefing(b: dict, erros: list[str] | None = None, codigo: str = "") ->
                 "vendas = <b>95</b>). Obrigatório quando o objetivo é vendas; serve para calcular a receita.")
         + f"</div><div><label>Margem de contribuição (%)</label><input name='margem_contribuicao_percentual' type='number' min='0' max='100' step='0.1' value='{v('margem_contribuicao_percentual')}'>"
         + _dica("Quanto <b>sobra de cada venda</b> depois de pagar o que custou para fazer ou comprar o "
-                "produto, em %. Conta: (preço − custo) ÷ preço × 100. Ex.: a vela vende por R$ 95 e custa "
+                "produto, em %. Conta: (preço − custo) ÷ preço × 100. Ex.: o produto vende por R$ 95 e custa "
                 "R$ 43 → sobram R$ 52 → 52 ÷ 95 ≈ <b>55</b>. Não sabe? Use um valor típico: <b>30</b> para "
                 "revenda, <b>50</b> a <b>60</b> para produto artesanal, <b>70</b> para serviço. Pode deixar "
                 "em branco: o relatório só não calcula o ROI.")
         + "</div></div>"
-        + f"<label>Observações</label><textarea name='observacoes'>{v('observacoes')}</textarea>"
+        + f"<label>Observações</label><textarea name='observacoes' placeholder='Ex.: marca nova, tem 3 mil seguidores no Instagram'>{v('observacoes')}</textarea>"
         + _dica("Qualquer detalhe que ajude os agentes: situação atual, público que já compra, o que "
                 "a empresa quer evitar. Ex.: <b>marca nova, tem 3 mil seguidores no Instagram</b>.")
-        +
+        + ((
         "<label>Agentes que ainda não estão no servidor</label><select name='modo'>"
-        "<option value='exemplo'>Usar a saída do exemplo no lugar (só funciona com o briefing da Lume)</option>"
-        "<option value='esperar'>Esperar os grupos rodarem no PC deles (participar.py)</option></select>"
-        + _dica("Com outra empresa, escolha <b>esperar os grupos</b>: o exemplo só combina com a Lume.")
+        "<option value='esperar'>Esperar os grupos rodarem no PC deles (participar.py)</option>"
+        "<option value='exemplo'>Usar uma saída de exemplo no lugar (só para teste)</option></select>"
+        + _dica("Só aparece quando falta algum agente no servidor.")) if faltam else "")
         + (f"<label>Código de acesso</label><input name='codigo' type='password' value='{escape(codigo)}' required>"
            if os.environ.get("CODIGO_ACESSO") else "")
         + "<p><button class='botao' type='submit' style='border:0;cursor:pointer'>Rodar</button></p></form>")
@@ -1666,7 +1666,8 @@ def _form_briefing(b: dict, erros: list[str] | None = None, codigo: str = "") ->
 
 @mcp.custom_route("/painel/novo", methods=["GET"])
 async def nova_rodada_form(request: Request) -> HTMLResponse:
-    return _form_briefing(_ler_json(PASTA_EXEMPLOS / "briefing.json") or {})
+    return _form_briefing({"objetivo_campanha": "reconhecimento", "orcamento_total": 100000,
+                           "duracao_dias": 30})
 
 
 @mcp.custom_route("/painel/novo", methods=["POST"])
@@ -1697,7 +1698,7 @@ async def nova_rodada(request: Request):
         "observacoes": str(form.get("observacoes", "")).strip(),
     }
     codigo = str(form.get("codigo", ""))
-    modo = "esperar" if form.get("modo") == "esperar" else "exemplo"
+    modo = "exemplo" if form.get("modo") == "exemplo" else "esperar"
     erros = _problemas_briefing(b)
     if os.environ.get("CODIGO_ACESSO") and codigo != os.environ["CODIGO_ACESSO"]:
         erros.append("Código de acesso incorreto.")
