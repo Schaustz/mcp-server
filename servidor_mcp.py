@@ -146,7 +146,8 @@ AGENTES = {
         "entrega_para": "agente06_financeiro",
         "missao": ("Projetar QUANTO cada canal escolhido tende a render a cada R$ 1.000 "
                    "investidos, nos 3 cenários. Os números vêm da ferramenta simular_canais; "
-                   "o agente interpreta e ranqueia, nunca calcula."),
+                   "o agente interpreta e ranqueia, nunca calcula. Passe SEMPRE o id_execucao "
+                   "da execução atual em simular_canais (o ticket médio vem do briefing dela)."),
         "ferramentas_recomendadas": ["ler_briefing", "ler_saida_agente",
                                      "ler_premissas_simulacao", "simular_canais"],
         "campos_obrigatorios": ["base_simulacao", "resultados_por_canal", "ranking_eficiencia", "leitura"],
@@ -163,7 +164,9 @@ AGENTES = {
         "le": ["briefing", "saídas 03 e 05"],
         "entrega_para": "orquestrador",
         "missao": ("Distribuir o orçamento por canal (soma exata) e projetar receita, ROAS e ROI "
-                   "nos 3 cenários. Percentuais vêm do agente; valores e KPIs vêm das ferramentas."),
+                   "nos 3 cenários. Percentuais vêm do agente; valores e KPIs vêm das ferramentas. "
+                   "Passe SEMPRE o id_execucao da execução atual em projetar_resultados "
+                   "(ticket médio e margem vêm do briefing dela)."),
         "ferramentas_recomendadas": ["ler_briefing", "ler_saida_agente", "validar_distribuicao",
                                      "calcular_distribuicao_orcamento", "projetar_resultados"],
         "campos_obrigatorios": ["distribuicao", "total_distribuido", "projecao", "justificativa"],
@@ -356,6 +359,10 @@ def _problemas_dados(numero_agente: int, dados: dict, id_execucao: str = ID_EXEM
                     f"projecao.{cen}", totais[cen], calc["totais_por_cenario"][cen],
                     ["investimento", "impressoes", "novos_seguidores", "conversoes", "receita", "roas"])
 
+    if numero_agente in (5, 6) and problemas:
+        ferramenta = "simular_canais" if numero_agente == 5 else "projetar_resultados"
+        problemas.append(f"dica: chame {ferramenta} de novo com id_execucao=\"{id_execucao}\" "
+                         "e copie o resultado sem mudar nada")
     return problemas
 
 
@@ -687,7 +694,8 @@ def simular_canais(canais: list[str], investimento_por_canal: float = 1000,
     R$ 1.000) nos cenários pessimista, realista e otimista, usando a tabela de
     premissas. Retorna impressões, alcance, cliques, engajamentos, novos
     seguidores, conversões, CPC, custo por seguidor e receita (se o briefing
-    tiver ticket médio). Simulação — não representa resultado real."""
+    tiver ticket médio). Passe SEMPRE o id_execucao da execução atual: o
+    ticket médio vem do briefing dela. Simulação — não representa resultado real."""
     invalidos = [c for c in canais if c not in CANAIS_SUPORTADOS]
     if invalidos:
         return {"erro": f"Canais fora da lista: {invalidos}"}
@@ -744,7 +752,8 @@ def projetar_resultados(valores_por_canal: dict[str, float],
     cada canal (saída de calcular_distribuicao_orcamento), nos 3 cenários:
     totais de impressões, alcance, cliques, engajamentos, novos seguidores,
     conversões, receita, ROAS e ROI (ROI só se o briefing tiver margem).
-    Simulação — não representa resultado real."""
+    Passe SEMPRE o id_execucao da execução atual: ticket médio e margem vêm do
+    briefing dela. Simulação — não representa resultado real."""
     invalidos = [c for c in valores_por_canal if c not in CANAIS_SUPORTADOS]
     if invalidos:
         return {"erro": f"Canais fora da lista: {invalidos}"}
