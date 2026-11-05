@@ -23,6 +23,16 @@ CENARIOS = ["pessimista", "realista", "otimista"]
 AVISO = "Simulação — não representa resultado real"
 
 
+def _aviso_dados(conc: dict) -> str:
+    """Aviso do topo: diz se os concorrentes vieram da internet ou da base fictícia."""
+    reais = [x for x in _lista(conc.get("concorrentes_analisados"))
+             if isinstance(x, dict) and x.get("tipo") == "real"]
+    if reais:
+        return (f"{AVISO}. Os concorrentes marcados como reais foram encontrados na internet "
+                "(link da fonte na seção 3); premissas e números de performance são simulados.")
+    return f"{AVISO}. Todos os dados, concorrentes e premissas são fictícios."
+
+
 # ----------------------------------------------------------------- formatos ---
 
 def _num(v, casas=0) -> str:
@@ -168,7 +178,7 @@ def gerar_html(c: dict) -> str:
         f"<span>Orçamento: {_reais(b.get('orcamento_total'), 0)}</span>"
         f"<span>{escape(str(b.get('duracao_dias', '')))} dias</span>"
         f"<span>{escape(str(b.get('regiao', '')))}</span></div></header>"
-        f"<p class='aviso'>{AVISO}. Todos os dados, concorrentes e premissas são fictícios.</p>")
+        f"<p class='aviso'>{escape(_aviso_dados(c['concorrencia']))}</p>")
     if m.get("parcial"):
         n = m["parcial"]
         partes.append(f"<p class='aviso' style='color:#b42318;background:#fde8e7'>RELATÓRIO PARCIAL: o fluxo "
@@ -214,10 +224,18 @@ def gerar_html(c: dict) -> str:
         partes.append(f"<section><h2>2. Público prioritário</h2>{_sem_dados('01')}</section>")
 
     # 3. Concorrência
+    def _origem_html(x: dict) -> str:
+        fonte = str(x.get("fonte") or "")
+        if x.get("tipo") == "real" and fonte.startswith("http"):
+            return (f"<span class='sub' style='font-size:12px'>real · "
+                    f"<a href='{escape(fonte)}' target='_blank' rel='noopener'>fonte</a></span>")
+        return "<span class='sub' style='font-size:12px'>fictício</span>"
+
     co = c["concorrencia"]
     if co:
         linhas = "".join(
-            f"<tr><td><b>{escape(str(x.get('nome', '')))}</b></td><td>{escape(str(x.get('posicionamento', '')))}</td>"
+            f"<tr><td><b>{escape(str(x.get('nome', '')))}</b><br>{_origem_html(x)}</td>"
+            f"<td>{escape(str(x.get('posicionamento', '')))}</td>"
             f"<td><span class='tag {escape(str(x.get('ameaca', '')).lower())}'>{escape(str(x.get('ameaca', '')))}</span></td>"
             f"<td>{escape(str(x.get('justificativa', '')))}</td></tr>"
             for x in _lista(co.get("concorrentes_analisados")) if isinstance(x, dict))
@@ -355,7 +373,7 @@ def gerar_markdown(c: dict) -> str:
     b, m, t = c["briefing"], c["meta"], c["totais"]
     leitura = c.get("leitura") or {}
     L = [f"# Plano de campanha — {b.get('empresa', '')}", "",
-         f"> {AVISO}. Todos os dados, concorrentes e premissas são fictícios.", ""]
+         f"> {_aviso_dados(c['concorrencia'])}", ""]
     if m.get("parcial"):
         L += [f"> **RELATÓRIO PARCIAL:** o fluxo parou no agente {m['parcial']:02d} "
               f"({AGENTES[m['parcial']][0]}).", ""]
@@ -366,7 +384,9 @@ def gerar_markdown(c: dict) -> str:
     L += ["## 2. Público prioritário", "", f"**{pp.get('nome', '—')}** — {pp.get('descricao', '')}", ""]
     L += [f"- Dor: {d}" for d in _lista(pp.get("dores"))] + [""]
     L += ["## 3. Concorrência e diferenciais", ""]
-    L += [f"- **{x.get('nome')}** (ameaça {x.get('ameaca')}): {x.get('justificativa', '')}"
+    L += [f"- **{x.get('nome')}** (ameaça {x.get('ameaca')}; "
+          + (f"real, fonte: {x.get('fonte')}" if x.get("tipo") == "real" else "fictício")
+          + f"): {x.get('justificativa', '')}"
           for x in _lista(c["concorrencia"].get("concorrentes_analisados")) if isinstance(x, dict)]
     L += [""] + [f"- Diferencial: {d}" for d in _lista(c["concorrencia"].get("diferenciais_sugeridos"))] + [""]
     cc = c["criativo"].get("conceito_criativo") or {}

@@ -2,8 +2,9 @@
 Agente 02 — Concorrência (Grupo 1: Gustavo e Matheus)
 =====================================================
 
-Mostra COMO está o mercado: lê o briefing, o público do Agente 01 e a base
-fictícia de concorrentes no servidor MCP, e entrega a análise de ameaças,
+Mostra COMO está o mercado: lê o briefing, o público do Agente 01, busca
+concorrentes reais na internet (Tavily, pelo servidor MCP; a base fictícia
+é a reserva), e entrega a análise de ameaças,
 lacunas, diferenciais e canais mais disputados para o Agente 03 (Canais).
 
 Rodar a partir de 01_PROJETO:
@@ -38,20 +39,37 @@ acostumado a pequenas e médias marcas brasileiras. Você compara concorrentes
 com base em evidências (posicionamento, preço, canais e pontos fracos) e só
 recomenda diferenciais que a empresa do briefing consegue de fato executar."""
 
-INSTRUCOES = """- Leia o briefing e use ler_concorrentes com o "segmento" do briefing.
-  Se não houver concorrentes no segmento, use os segmentos_disponiveis mais
-  próximos e registre isso em premissas.
-- Leia a saída do Agente 01 (público): a ameaça de cada concorrente depende de
-  quanto ele disputa ESSE público e os mesmos canais.
-- Para cada concorrente: posicionamento em uma frase, ameaça (alta, media ou
-  baixa) e uma justificativa que cite preço, canais e pontos fracos da base.
+INSTRUCOES = """- Leia o briefing (produto_ou_servico, segmento, regiao) e a saída do
+  Agente 01 (público).
+- PRIMEIRO busque concorrentes REAIS na internet com buscar_concorrentes_web,
+  numa única chamada com 2 ou 3 consultas curtas em português. Monte as
+  consultas com o produto, o segmento e a cidade/região do briefing, por
+  exemplo: "velas artesanais Campinas", "loja de aromas artesanais
+  Instagram", "difusor de ambiente artesanal comprar".
+- Dos resultados, escolha de 3 a 5 EMPRESAS concorrentes de verdade (marcas,
+  lojas, ateliês). Ignore listas genéricas, notícias, marketplaces inteiros e
+  sites de dicas. Se o mesmo concorrente aparecer em mais de um link, use o
+  link mais direto (site ou perfil da própria marca).
+- Para cada concorrente real: "tipo": "real" e "fonte" com o link EXATO que a
+  ferramenta devolveu. Posicionamento, preço e canais só podem vir do que está
+  no trecho; se o trecho não disser o preço ou os canais, diga que não foi
+  possível confirmar em vez de inventar.
+- Se a busca der erro ou não trouxer nenhuma empresa concorrente, use
+  ler_concorrentes com o "segmento" do briefing (base fictícia de reserva),
+  marque esses concorrentes com "tipo": "simulado" e registre em premissas que
+  a busca na internet não funcionou. Se faltar concorrente real, pode
+  completar com simulados, sempre marcando o tipo certo.
+- A ameaça (alta, media ou baixa) depende de quanto o concorrente disputa
+  ESSE público (Agente 01) e os mesmos canais. Justifique citando preço,
+  canais ou pontos fracos que apareceram na fonte.
 - lacunas_de_mercado: 2 a 4 espaços que nenhum concorrente ocupa bem.
 - diferenciais_sugeridos: 3 a 5 ações concretas, ligadas às lacunas e ao
   público, que uma empresa do porte do briefing consegue fazer.
 - canais_mais_disputados: os canais onde os concorrentes mais aparecem, só da
   lista de listar_canais_suportados, do mais para o menos disputado.
-- Todos os concorrentes são fictícios ("tipo": "simulado"). Nunca cite
-  empresas reais."""
+- Em premissas, registre as consultas usadas na busca e que as informações dos
+  concorrentes reais vêm dos trechos públicos das páginas, podendo estar
+  desatualizadas."""
 
 # ======================= daqui para baixo é igual para todos ================
 

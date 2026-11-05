@@ -20,10 +20,10 @@ regras do contrato e a **ficha do seu papel**, com o formato exato da saída.
 
 ```
 mcp-server/
-├── servidor_mcp.py              o servidor (21 ferramentas)
+├── servidor_mcp.py              o servidor (22 ferramentas)
 ├── regras/contrato.md           resumo das regras (ler_regras_contrato)
 ├── dados/
-│   ├── concorrentes.json        base fictícia de concorrentes (Grupo 1)
+│   ├── concorrentes.json        base fictícia de concorrentes (reserva da busca)
 │   └── premissas_simulacao.json premissas por canal e regras de distribuição
 │                                (RASCUNHO, o Grupo 2 valida)
 ├── exemplos/                    exemplo oficial (id EXEMPLO): Lume Ateliê de
@@ -44,7 +44,8 @@ mcp-server/
 | | `ler_saida_agente(numero, id)` | Saída de outro agente |
 | | `verificar_saida(numero, mensagem)` | Confere formato e regras sem gravar |
 | | `ler_dados(nome)` | Atalho para as bases fictícias |
-| 02 Concorrência | `ler_concorrentes(segmento)` | Base fictícia filtrada pelo segmento |
+| 02 Concorrência | `buscar_concorrentes_web(consultas)` | Busca concorrentes reais na internet (Tavily) e devolve título, link e trecho |
+| | `ler_concorrentes(segmento)` | Reserva: base fictícia filtrada pelo segmento |
 | 03 Canais | `ler_premissas_simulacao` | Custos e taxas de referência por canal |
 | | `validar_canais(canais)` | Lista fechada e de 2 a 5 canais |
 | 04 Criativo | `verificar_mensagens_criativo` | Mensagem para cada canal e limites de texto |
@@ -85,6 +86,9 @@ Configuração no Render (aba **Environment** do serviço):
 - `GEMINI_API_KEY`: chave do Gemini usada pelos agentes do servidor;
 - `CODIGO_ACESSO`: senha pedida no formulário (evita que qualquer pessoa
   com o link gaste a cota do Gemini).
+- `TAVILY_API_KEY`: chave do Tavily, usada por `buscar_concorrentes_web`
+  (plano grátis: 1.000 buscas por mês). Sem ela, o Agente 02 usa a base
+  fictícia de concorrentes.
 
 Para colocar o agente de outro grupo no servidor, suba o arquivo em
 `agentes/GRUPO_X/` com o nome do contrato (ex.: `agentes/GRUPO_3/agente01_publico.py`).

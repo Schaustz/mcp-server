@@ -54,8 +54,10 @@ premissas (lista), erros (lista), observacoes (texto).
 ## Regras de dados
 - Contas (somas, porcentagens, KPIs, distribuição de dinheiro) sempre em Python
   (ferramentas do servidor), nunca no Gemini.
-- Nenhum dado pode ser apresentado como real: concorrentes e premissas são
-  fictícios e marcados com "tipo": "simulado".
+- Concorrentes podem ser reais SOMENTE quando vierem de buscar_concorrentes_web:
+  marcados com "tipo": "real" e "fonte" com o link da busca. Os da base
+  fictícia ficam com "tipo": "simulado". Premissas e números de
+  performance são sempre simulados.
 - Receita não é lucro, e ROAS não é ROI.
 - O servidor recalcula os números do Simulador (05) e do Financeiro (06) e
   recusa a saída se algum número não bater com o das ferramentas.
@@ -93,7 +95,8 @@ margem); riscos; premissas e limitações, com o aviso
 - Todos: ler_regras_contrato, ler_ficha_agente (traz o formato exato da saída),
   listar_canais_suportados, ler_briefing, ler_saida_agente, verificar_saida.
 - 01 Público: usa as ferramentas de todos.
-- 02 Concorrência: ler_concorrentes (filtra pelo segmento do briefing).
+- 02 Concorrência: buscar_concorrentes_web (concorrentes reais na internet,
+  com link da fonte); ler_concorrentes como reserva (base fictícia).
 - 03 Canais: ler_premissas_simulacao (custos de referência) e validar_canais
   (2 a 5 canais da lista fechada).
 - 04 Criativo: verificar_mensagens_criativo (uma mensagem por canal escolhido

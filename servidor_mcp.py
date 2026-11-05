@@ -19,7 +19,7 @@ Ferramentas por agente
 - Todos:       ler_regras_contrato, ler_ficha_agente, listar_canais_suportados,
                ler_briefing, ler_saida_agente, verificar_saida
 - 01 Público:  (usa as de todos)
-- 02 Concorr.: ler_concorrentes
+- 02 Concorr.: buscar_concorrentes_web (internet, Tavily), ler_concorrentes (reserva)
 - 03 Canais:   validar_canais, ler_premissas_simulacao (custos de referência)
 - 04 Criativo: verificar_mensagens_criativo
 - 05 Simul.:   ler_premissas_simulacao, simular_canais
@@ -97,14 +97,19 @@ AGENTES = {
     2: {
         "nome": "Concorrência", "chave": "agente02_concorrencia", "grupo": "1",
         "script": "GRUPO_1/agente02_concorrencia.py",
-        "le": ["briefing", "saída 01", "dados concorrentes"],
+        "le": ["briefing", "saída 01", "busca de concorrentes na internet"],
         "entrega_para": "agente03_canais",
-        "missao": "Mostrar COMO está o mercado: concorrentes, lacunas e diferenciais.",
-        "ferramentas_recomendadas": ["ler_briefing", "ler_saida_agente", "ler_concorrentes"],
+        "missao": ("Mostrar COMO está o mercado: concorrentes, lacunas e diferenciais. "
+                   "Os concorrentes vêm da internet (buscar_concorrentes_web), com o link "
+                   "da fonte; a base fictícia (ler_concorrentes) é só a reserva."),
+        "ferramentas_recomendadas": ["ler_briefing", "ler_saida_agente",
+                                     "buscar_concorrentes_web", "ler_concorrentes"],
         "campos_obrigatorios": ["concorrentes_analisados", "lacunas_de_mercado",
                                 "diferenciais_sugeridos", "canais_mais_disputados"],
         "formato_dados": {
-            "concorrentes_analisados": [{"nome": "", "tipo": "simulado", "posicionamento": "",
+            "concorrentes_analisados": [{"nome": "", "tipo": "real | simulado",
+                                         "fonte": "link de buscar_concorrentes_web (obrigatório se real)",
+                                         "posicionamento": "",
                                          "ameaca": "alta | media | baixa", "justificativa": ""}],
             "lacunas_de_mercado": [""],
             "diferenciais_sugeridos": [""],
@@ -191,7 +196,8 @@ INSTRUCOES = """Servidor do sistema multiagente Marketing Campaign Commander
 Antes de trabalhar, todo agente deve chamar ler_regras_contrato e
 ler_ficha_agente com o seu número; a ficha traz o formato exato da saída.
 Contas são sempre feitas pelas ferramentas, nunca pelo modelo.
-Todos os dados são fictícios."""
+Premissas e números são simulados; concorrentes podem ser reais quando vierem
+de buscar_concorrentes_web (com o link da fonte)."""
 
 mcp = FastMCP("marketing-campaign-commander", instructions=INSTRUCOES)
 
@@ -291,8 +297,19 @@ def _problemas_dados(numero_agente: int, dados: dict, id_execucao: str = ID_EXEM
         if invalidos:
             problemas.append(f"canais_mais_disputados fora da lista: {invalidos}")
         for c in dados["concorrentes_analisados"]:
-            if isinstance(c, dict) and c.get("tipo") != "simulado":
-                problemas.append(f"concorrente {c.get('nome')} precisa de \"tipo\": \"simulado\"")
+            if not isinstance(c, dict):
+                continue
+            tipo, fonte = c.get("tipo"), str(c.get("fonte") or "")
+            if tipo not in ("real", "simulado"):
+                problemas.append(f"concorrente {c.get('nome')}: \"tipo\" deve ser \"real\" "
+                                 "(veio da internet) ou \"simulado\" (base fictícia)")
+            elif tipo == "real" and not fonte.startswith("http"):
+                problemas.append(f"concorrente {c.get('nome')}: tipo real precisa de \"fonte\" "
+                                 "com o link vindo de buscar_concorrentes_web")
+            elif tipo == "real" and not _url_buscada(fonte):
+                problemas.append(f"concorrente {c.get('nome')}: a fonte {fonte} não apareceu em "
+                                 "nenhuma busca de buscar_concorrentes_web; use só links "
+                                 "devolvidos pela ferramenta")
 
     if numero_agente == 3:
         escolhidos = _canais_da_lista(dados["canais_escolhidos"])
@@ -561,9 +578,10 @@ def _listar_execucoes() -> list[dict]:
 
 @mcp.tool
 def ler_concorrentes(segmento: str | None = None) -> dict:
-    """[02 Concorrência] Retorna a base fictícia de concorrentes. Com
-    'segmento' (ex.: o segmento do briefing), filtra pelos concorrentes
-    daquele segmento. Todos são simulados, nenhum é real."""
+    """[02 Concorrência] RESERVA: base fictícia de concorrentes, para quando
+    buscar_concorrentes_web falhar. Com 'segmento' (ex.: o segmento do
+    briefing), filtra pelos concorrentes daquele segmento. Todos são
+    simulados, nenhum é real."""
     base = _ler_json(PASTA_DADOS / "concorrentes.json")
     if base is None:
         return {"erro": "Base de concorrentes ainda não foi publicada"}
@@ -577,6 +595,80 @@ def ler_concorrentes(segmento: str | None = None) -> dict:
                     "segmentos_disponiveis": segmentos}
         lista = filtrados
     return {"tipo": "simulado", "segmentos_disponiveis": segmentos, "concorrentes": lista}
+
+
+# --- Busca de concorrentes na internet (Tavily) ------------------------------
+# Chave em TAVILY_API_KEY (variável de ambiente do Render; nunca no GitHub).
+# Plano grátis do Tavily: 1.000 buscas por mês, 1 crédito por busca.
+
+TAVILY_URL = "https://api.tavily.com/search"
+MAX_CONSULTAS = 3
+_BUSCAS_CACHE: dict[str, list[dict]] = {}
+_URLS_BUSCADAS: set[str] = set()
+
+
+def _normalizar_url(url: str) -> str:
+    return url.strip().split("#")[0].rstrip("/").lower()
+
+
+def _url_buscada(url: str) -> bool:
+    return _normalizar_url(url) in _URLS_BUSCADAS
+
+
+async def _tavily(consulta: str, max_resultados: int) -> list[dict]:
+    import httpx
+    chave = (os.environ.get("TAVILY_API_KEY") or "").strip()
+    corpo = {"query": consulta, "search_depth": "basic", "max_results": max_resultados,
+             "country": "brazil", "include_answer": False}
+    async with httpx.AsyncClient(timeout=30) as http:
+        r = await http.post(TAVILY_URL, json=corpo, headers={"Authorization": f"Bearer {chave}"})
+    if r.status_code != 200:
+        raise RuntimeError(f"Tavily respondeu {r.status_code}: {r.text[:200]}")
+    return r.json().get("results", [])
+
+
+@mcp.tool
+async def buscar_concorrentes_web(consultas: list[str], max_resultados_por_busca: int = 5) -> dict:
+    """[02 Concorrência] Pesquisa concorrentes REAIS na internet (Tavily).
+    Passe de 1 a 3 consultas curtas em português, montadas com o produto, o
+    segmento e a cidade/região do briefing (ex.: "velas artesanais Campinas",
+    "loja de aromas artesanais Instagram"). Devolve título, link e um trecho
+    de cada página. Use só o que estiver nos trechos e cite o link em
+    "fonte". Se der erro, use ler_concorrentes (base fictícia) como reserva."""
+    if not (os.environ.get("TAVILY_API_KEY") or "").strip():
+        return {"erro": "Busca na internet desligada (falta TAVILY_API_KEY no servidor). "
+                        "Use ler_concorrentes (base fictícia) e marque \"tipo\": \"simulado\"."}
+    consultas = [c.strip() for c in consultas if isinstance(c, str) and c.strip()][:MAX_CONSULTAS]
+    if not consultas:
+        return {"erro": "Passe de 1 a 3 consultas de busca"}
+    n = max(1, min(int(max_resultados_por_busca or 5), 8))
+    resultados, vistos, erros = [], set(), []
+    for consulta in consultas:
+        chave = f"{consulta.lower()}|{n}"
+        try:
+            if chave not in _BUSCAS_CACHE:
+                _BUSCAS_CACHE[chave] = await _tavily(consulta, n)
+        except Exception as e:  # rede, chave inválida, limite do plano
+            erros.append(f"{consulta}: {e}")
+            continue
+        for item in _BUSCAS_CACHE[chave]:
+            url = str(item.get("url") or "")
+            if not url or _normalizar_url(url) in vistos:
+                continue
+            vistos.add(_normalizar_url(url))
+            _URLS_BUSCADAS.add(_normalizar_url(url))
+            resultados.append({"consulta": consulta, "titulo": item.get("title", ""), "url": url,
+                               "trecho": " ".join(str(item.get("content", "")).split())[:600]})
+    if not resultados:
+        return {"erro": "A busca não trouxe resultados. Use ler_concorrentes (base fictícia) "
+                        "e marque \"tipo\": \"simulado\".", "detalhes": erros}
+    return {
+        "tipo": "real", "fonte": "Tavily (busca na internet)", "consultas": consultas,
+        "resultados": resultados, "erros": erros,
+        "aviso": ("Resultados reais da internet. Cada concorrente analisado deve ter \"tipo\": "
+                  "\"real\" e \"fonte\" com o link de onde a informação veio. Não invente preço, "
+                  "seguidores ou canais que não estejam nos trechos."),
+    }
 
 
 @mcp.tool
@@ -1154,7 +1246,7 @@ def _leitura_executiva(briefing: dict, saidas: dict) -> dict | None:
     dados = {f"{n:02d}_{AGENTES[n]['nome']}": (saidas.get(n) or {}).get("dados") for n in AGENTES}
     prompt = (
         "Você é o diretor de estratégia do Marketing Campaign Commander. Abaixo estão o briefing e as "
-        "saídas dos 6 agentes de uma campanha SIMULADA (dados fictícios).\n"
+        "saídas dos 6 agentes de uma campanha SIMULADA (premissas e números simulados; concorrentes com \"tipo\": \"real\" vieram da internet).\n"
         "Escreva em português, para o cliente, SOMENTE um JSON com:\n"
         '{"resumo_executivo": "4 a 6 frases resumindo a estratégia e o resultado esperado", '
         '"recomendacoes": ["3 a 5 próximos passos práticos"], "riscos": ["2 a 3 riscos da estratégia"]}\n'

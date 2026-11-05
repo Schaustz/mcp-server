@@ -13,3 +13,5 @@ services:
         sync: false
       - key: CODIGO_ACESSO
         sync: false
+      - key: TAVILY_API_KEY
+        sync: false
