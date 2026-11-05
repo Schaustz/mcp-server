@@ -15,3 +15,5 @@ services:
         sync: false
       - key: TAVILY_API_KEY
         sync: false
+      - key: GITHUB_TOKEN
+        sync: false

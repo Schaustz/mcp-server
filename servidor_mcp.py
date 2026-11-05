@@ -19,7 +19,8 @@ Ferramentas por agente
 - Todos:       ler_regras_contrato, ler_ficha_agente, listar_canais_suportados,
                ler_briefing, ler_saida_agente, verificar_saida
 - 01 Público:  (usa as de todos)
-- 02 Concorr.: buscar_concorrentes_web (internet, Tavily), ler_concorrentes (reserva)
+- 02 Concorr.: buscar_concorrentes_web (internet, Tavily), ler_historico_concorrentes
+               (base de reais no GitHub), ler_concorrentes (reserva fictícia)
 - 03 Canais:   validar_canais, ler_premissas_simulacao (custos de referência)
 - 04 Criativo: verificar_mensagens_criativo
 - 05 Simul.:   ler_premissas_simulacao, simular_canais
@@ -102,8 +103,8 @@ AGENTES = {
         "missao": ("Mostrar COMO está o mercado: concorrentes, lacunas e diferenciais. "
                    "Os concorrentes vêm da internet (buscar_concorrentes_web), com o link "
                    "da fonte; a base fictícia (ler_concorrentes) é só a reserva."),
-        "ferramentas_recomendadas": ["ler_briefing", "ler_saida_agente",
-                                     "buscar_concorrentes_web", "ler_concorrentes"],
+        "ferramentas_recomendadas": ["ler_briefing", "ler_saida_agente", "buscar_concorrentes_web",
+                                     "ler_historico_concorrentes", "ler_concorrentes"],
         "campos_obrigatorios": ["concorrentes_analisados", "lacunas_de_mercado",
                                 "diferenciais_sugeridos", "canais_mais_disputados"],
         "formato_dados": {
@@ -514,7 +515,7 @@ def ler_briefing(id_execucao: str = ID_EXEMPLO) -> dict:
 
 
 @mcp.tool
-def gravar_saida(id_execucao: str, numero_agente: int, mensagem: dict) -> dict:
+async def gravar_saida(id_execucao: str, numero_agente: int, mensagem: dict) -> dict:
     """[Script do agente, não o modelo] Grava a saída de um agente no formato
     padrão do contrato, depois de conferir todos os campos e os dados."""
     if not _id_valido(id_execucao):
@@ -526,6 +527,9 @@ def gravar_saida(id_execucao: str, numero_agente: int, mensagem: dict) -> dict:
         problemas.append("id_execucao da mensagem diferente do informado")
     if problemas:
         return {"gravado": False, "problemas": problemas}
+    if numero_agente == 2 and mensagem.get("status") == "sucesso":
+        # Concorrentes reais encontrados vão para a base no GitHub (em segundo plano)
+        _agendar_base(mensagem, id_execucao)
     if id_execucao == ID_EXEMPLO:
         # Teste em cima do exemplo: confere o formato, mas não substitui o oficial
         return {"gravado": False, "teste_aprovado": True,
@@ -604,7 +608,7 @@ def ler_concorrentes(segmento: str | None = None) -> dict:
 TAVILY_URL = "https://api.tavily.com/search"
 MAX_CONSULTAS = 3
 _BUSCAS_CACHE: dict[str, list[dict]] = {}
-_URLS_BUSCADAS: set[str] = set()
+_URLS_BUSCADAS: dict[str, dict] = {}   # link -> título, trecho e consulta
 
 
 def _normalizar_url(url: str) -> str:
@@ -656,9 +660,10 @@ async def buscar_concorrentes_web(consultas: list[str], max_resultados_por_busca
             if not url or _normalizar_url(url) in vistos:
                 continue
             vistos.add(_normalizar_url(url))
-            _URLS_BUSCADAS.add(_normalizar_url(url))
-            resultados.append({"consulta": consulta, "titulo": item.get("title", ""), "url": url,
-                               "trecho": " ".join(str(item.get("content", "")).split())[:600]})
+            achado = {"consulta": consulta, "titulo": item.get("title", ""), "url": url,
+                      "trecho": " ".join(str(item.get("content", "")).split())[:600]}
+            _URLS_BUSCADAS[_normalizar_url(url)] = achado
+            resultados.append(achado)
     if not resultados:
         return {"erro": "A busca não trouxe resultados. Use ler_concorrentes (base fictícia) "
                         "e marque \"tipo\": \"simulado\".", "detalhes": erros}
@@ -668,6 +673,220 @@ async def buscar_concorrentes_web(consultas: list[str], max_resultados_por_busca
         "aviso": ("Resultados reais da internet. Cada concorrente analisado deve ter \"tipo\": "
                   "\"real\" e \"fonte\" com o link de onde a informação veio. Não invente preço, "
                   "seguidores ou canais que não estejam nos trechos."),
+    }
+
+
+# --- Base de concorrentes reais no GitHub ------------------------------------
+# Todo concorrente "real" que o Agente 02 entrega é guardado no arquivo
+# concorrentes_encontrados.json, num ramo separado do repositório
+# (base-concorrentes). Ramo separado porque o Render só republica quando o
+# ramo main muda; salvar no main reiniciaria o servidor no meio da rodada.
+# Chave: GITHUB_TOKEN (token com permissão "Contents: read and write" só neste
+# repositório), nas variáveis do Render. Nunca no código.
+
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "Schaustz/mcp-server")
+GITHUB_RAMO = os.environ.get("GITHUB_RAMO_BASE", "base-concorrentes")
+ARQUIVO_BASE = "concorrentes_encontrados.json"
+_GH_API = "https://api.github.com"
+_BASE_CACHE: dict = {"dados": None, "lido_em": 0.0}
+_BASE_STATUS: dict = {"status": "nada salvo desde que o servidor ligou", "quando": "", "detalhe": ""}
+_BASE_TRAVA: asyncio.Lock | None = None
+_TAREFAS_BASE: set = set()
+
+
+def _gh_headers() -> dict:
+    h = {"Accept": "application/vnd.github+json", "User-Agent": "mcp-campaign-commander",
+         "X-GitHub-Api-Version": "2022-11-28"}
+    token = (os.environ.get("GITHUB_TOKEN") or "").strip()
+    if token:
+        h["Authorization"] = f"Bearer {token}"
+    return h
+
+
+def _sem_acento(texto: str) -> str:
+    import unicodedata
+    t = unicodedata.normalize("NFKD", str(texto or "")).encode("ascii", "ignore").decode()
+    return " ".join(t.lower().split())
+
+
+async def _gh_ler_base(http) -> tuple[dict, str | None]:
+    """Lê o arquivo da base no ramo. Devolve (dados, sha); sem arquivo: base vazia."""
+    import base64
+    r = await http.get(f"{_GH_API}/repos/{GITHUB_REPO}/contents/{ARQUIVO_BASE}",
+                       params={"ref": GITHUB_RAMO}, headers=_gh_headers())
+    if r.status_code == 404:
+        return {"concorrentes": []}, None
+    if r.status_code != 200:
+        raise RuntimeError(f"GitHub respondeu {r.status_code} ao ler a base: {r.text[:200]}")
+    j = r.json()
+    dados = json.loads(base64.b64decode(j["content"]).decode("utf-8"))
+    return dados, j["sha"]
+
+
+async def _gh_garantir_ramo(http) -> None:
+    r = await http.get(f"{_GH_API}/repos/{GITHUB_REPO}/git/ref/heads/{GITHUB_RAMO}", headers=_gh_headers())
+    if r.status_code == 200:
+        return
+    main = await http.get(f"{_GH_API}/repos/{GITHUB_REPO}/git/ref/heads/main", headers=_gh_headers())
+    if main.status_code != 200:
+        raise RuntimeError(f"GitHub respondeu {main.status_code} ao ler o ramo main: {main.text[:200]}")
+    c = await http.post(f"{_GH_API}/repos/{GITHUB_REPO}/git/refs", headers=_gh_headers(),
+                        json={"ref": f"refs/heads/{GITHUB_RAMO}", "sha": main.json()["object"]["sha"]})
+    if c.status_code not in (201, 422):  # 422: alguém criou ao mesmo tempo
+        raise RuntimeError(f"GitHub respondeu {c.status_code} ao criar o ramo: {c.text[:200]}")
+
+
+async def _gh_salvar_base(http, dados: dict, sha: str | None, mensagem: str) -> int:
+    import base64
+    corpo = {"message": mensagem, "branch": GITHUB_RAMO,
+             "content": base64.b64encode(json.dumps(dados, ensure_ascii=False, indent=2)
+                                         .encode("utf-8")).decode()}
+    if sha:
+        corpo["sha"] = sha
+    r = await http.put(f"{_GH_API}/repos/{GITHUB_REPO}/contents/{ARQUIVO_BASE}",
+                       headers=_gh_headers(), json=corpo)
+    if r.status_code not in (200, 201, 409, 422):
+        raise RuntimeError(f"GitHub respondeu {r.status_code} ao salvar: {r.text[:200]}")
+    return r.status_code
+
+
+def _mesclar_na_base(base: dict, mensagem: dict, briefing: dict, id_execucao: str) -> int:
+    """Junta os concorrentes reais da saída do 02 na base. Devolve quantos entraram ou mudaram."""
+    agora = datetime.now().isoformat(timespec="seconds")
+    lista = base.setdefault("concorrentes", [])
+    por_nome = {_sem_acento(c.get("nome", "")): c for c in lista}
+    mudou = 0
+    for c in _lista_dicts(mensagem.get("dados", {}).get("concorrentes_analisados")):
+        fonte = str(c.get("fonte") or "")
+        if c.get("tipo") != "real" or not fonte.startswith("http") or not c.get("nome"):
+            continue
+        chave = _sem_acento(c["nome"])
+        item = por_nome.get(chave)
+        if item is None:
+            item = {"nome": c["nome"], "tipo": "real", "fontes": [], "segmentos": [], "regioes": [],
+                    "posicionamento": "", "trecho_da_fonte": "", "avaliacoes": [],
+                    "vezes_encontrado": 0, "primeira_vez": agora, "ultima_vez": agora}
+            lista.append(item)
+            por_nome[chave] = item
+        if fonte not in item["fontes"]:
+            item["fontes"].append(fonte)
+        for campo, valor in (("segmentos", briefing.get("segmento")), ("regioes", briefing.get("regiao"))):
+            if valor and valor not in item[campo]:
+                item[campo].append(valor)
+        if c.get("posicionamento"):
+            item["posicionamento"] = c["posicionamento"]
+        achado = _URLS_BUSCADAS.get(_normalizar_url(fonte))
+        if achado and achado.get("trecho"):
+            item["trecho_da_fonte"] = achado["trecho"]
+        item["avaliacoes"] = (item["avaliacoes"] + [{
+            "data": agora, "id_execucao": id_execucao, "empresa_analisada": briefing.get("empresa"),
+            "ameaca": c.get("ameaca"), "justificativa": c.get("justificativa")}])[-10:]
+        item["vezes_encontrado"] += 1
+        item["ultima_vez"] = agora
+        mudou += 1
+    base["tipo"] = "real"
+    base["observacao"] = ("Concorrentes reais encontrados na internet pelo Agente 02 (Tavily). "
+                          "Informações de trechos públicos; podem estar desatualizadas.")
+    base["atualizado_em"] = agora
+    return mudou
+
+
+def _lista_dicts(itens) -> list[dict]:
+    return [x for x in (itens if isinstance(itens, list) else []) if isinstance(x, dict)]
+
+
+async def _registrar_na_base(mensagem: dict, id_execucao: str) -> None:
+    import httpx
+    global _BASE_TRAVA
+    reais = [c for c in _lista_dicts(mensagem.get("dados", {}).get("concorrentes_analisados"))
+             if c.get("tipo") == "real"]
+    if not reais:
+        return
+    if not (os.environ.get("GITHUB_TOKEN") or "").strip():
+        _BASE_STATUS.update(status="não salvo", quando=datetime.now().isoformat(timespec="seconds"),
+                            detalhe="falta GITHUB_TOKEN no servidor")
+        return
+    _BASE_TRAVA = _BASE_TRAVA or asyncio.Lock()
+    briefing = _briefing(id_execucao) or {}
+    try:
+        async with _BASE_TRAVA, httpx.AsyncClient(timeout=30) as http:
+            await _gh_garantir_ramo(http)
+            for _ in range(3):  # se outro salvamento passar na frente, lê de novo
+                base, sha = await _gh_ler_base(http)
+                n = _mesclar_na_base(base, mensagem, briefing, id_execucao)
+                codigo = await _gh_salvar_base(
+                    http, base, sha, f"Base de concorrentes: +{n} de {briefing.get('empresa', id_execucao)}")
+                if codigo in (200, 201):
+                    _BASE_CACHE.update(dados=base, lido_em=time.time())
+                    _BASE_STATUS.update(status="salvo", quando=base["atualizado_em"],
+                                        detalhe=f"{n} concorrente(s) de {id_execucao}")
+                    return
+            raise RuntimeError("conflito ao salvar no GitHub depois de 3 tentativas")
+    except Exception as e:
+        _BASE_STATUS.update(status="erro ao salvar", quando=datetime.now().isoformat(timespec="seconds"),
+                            detalhe=str(e)[:300])
+        print(f"[base de concorrentes] {e}", file=sys.stderr)
+
+
+def _agendar_base(mensagem: dict, id_execucao: str) -> None:
+    tarefa = asyncio.get_running_loop().create_task(_registrar_na_base(mensagem, id_execucao))
+    _TAREFAS_BASE.add(tarefa)
+    tarefa.add_done_callback(_TAREFAS_BASE.discard)
+
+
+async def _base_atual(max_idade_s: float = 60) -> dict:
+    import httpx
+    if _BASE_CACHE["dados"] is not None and time.time() - _BASE_CACHE["lido_em"] < max_idade_s:
+        return _BASE_CACHE["dados"]
+    async with httpx.AsyncClient(timeout=30) as http:
+        base, _ = await _gh_ler_base(http)
+    _BASE_CACHE.update(dados=base, lido_em=time.time())
+    return base
+
+
+@mcp.tool
+async def ler_historico_concorrentes(segmento: str | None = None, regiao: str | None = None,
+                                     limite: int = 15) -> dict:
+    """[02 Concorrência] Concorrentes REAIS já encontrados em execuções
+    anteriores (base guardada no GitHub). Filtre pelo segmento e/ou pela
+    cidade/região do briefing. Serve para comparar com a busca de agora: quem
+    aparece há mais tempo, quantas vezes foi encontrado e a ameaça que recebeu.
+    Pode citar um concorrente do histórico com "tipo": "real" e "fonte" igual
+    a um dos links em "fontes"."""
+    try:
+        base = await _base_atual()
+    except Exception as e:
+        return {"erro": f"Não foi possível ler a base de concorrentes: {e}"}
+    lista = _lista_dicts(base.get("concorrentes"))
+    seg, reg = _sem_acento(segmento or ""), _sem_acento(regiao or "")
+
+    def combina(valores: list, filtro: str) -> bool:
+        if not filtro:
+            return True
+        vs = [_sem_acento(v) for v in valores]
+        palavras = [p for p in re.split(r"[\s,/-]+", filtro) if len(p) > 3]
+        return any(filtro in v or v in filtro or any(p in v for p in palavras) for v in vs)
+
+    filtrados = [c for c in lista if combina(c.get("segmentos", []), seg) and combina(c.get("regioes", []), reg)]
+    filtrados.sort(key=lambda c: (c.get("vezes_encontrado", 0), c.get("ultima_vez", "")), reverse=True)
+    filtrados = filtrados[:max(1, min(int(limite or 15), 40))]
+    for c in filtrados:  # links do histórico também valem como fonte
+        for f in c.get("fontes", []):
+            _URLS_BUSCADAS.setdefault(_normalizar_url(f), {"url": f, "titulo": c.get("nome"),
+                                                           "trecho": c.get("trecho_da_fonte", ""),
+                                                           "consulta": "histórico"})
+    return {
+        "tipo": "real", "total_na_base": len(lista), "encontrados": len(filtrados),
+        "atualizado_em": base.get("atualizado_em"),
+        "concorrentes": [{
+            "nome": c.get("nome"), "fontes": c.get("fontes", []), "segmentos": c.get("segmentos", []),
+            "regioes": c.get("regioes", []), "posicionamento": c.get("posicionamento", ""),
+            "trecho_da_fonte": c.get("trecho_da_fonte", ""),
+            "vezes_encontrado": c.get("vezes_encontrado", 0), "primeira_vez": c.get("primeira_vez"),
+            "ultima_vez": c.get("ultima_vez"),
+            "ultima_avaliacao": (c.get("avaliacoes") or [{}])[-1],
+        } for c in filtrados],
+        "aviso": "Informações de buscas anteriores; confira se ainda valem antes de usar.",
     }
 
 
@@ -1028,6 +1247,47 @@ def _tag(status: str) -> str:
     return f'<span class="tag {status}">{status}</span>'
 
 
+@mcp.custom_route("/concorrentes", methods=["GET"])
+async def pagina_concorrentes(request: Request) -> HTMLResponse:
+    """Base de concorrentes reais guardada no GitHub."""
+    try:
+        base = await _base_atual(max_idade_s=20)
+        erro = ""
+    except Exception as e:
+        base, erro = {"concorrentes": []}, str(e)
+    lista = sorted(_lista_dicts(base.get("concorrentes")),
+                   key=lambda c: c.get("ultima_vez", ""), reverse=True)
+    linhas = []
+    for c in lista:
+        av = (c.get("avaliacoes") or [{}])[-1]
+        links = " ".join(f'<a href="{escape(f)}" target="_blank" rel="noopener">fonte {i + 1}</a>'
+                         for i, f in enumerate(c.get("fontes", [])))
+        linhas.append(
+            f"<tr><td><b>{escape(str(c.get('nome', '')))}</b><br><span class='sub'>{links}</span></td>"
+            f"<td>{escape(', '.join(c.get('segmentos', [])))}<br>"
+            f"<span class='sub'>{escape(', '.join(c.get('regioes', [])))}</span></td>"
+            f"<td>{escape(str(c.get('posicionamento', '')))}</td>"
+            f"<td>{escape(str(av.get('ameaca', '—')))}<br><span class='sub'>"
+            f"{escape(str(av.get('empresa_analisada') or ''))}</span></td>"
+            f"<td>{c.get('vezes_encontrado', 0)}</td>"
+            f"<td>{escape(str(c.get('ultima_vez', ''))[:10])}</td></tr>")
+    tabela = ("<div class='card'><table><tr><th>Concorrente</th><th>Segmento / região</th>"
+              "<th>Posicionamento</th><th>Última ameaça</th><th>Vezes</th><th>Última vez</th></tr>"
+              + "".join(linhas) + "</table></div>") if linhas else (
+              "<div class='card'>Nenhum concorrente guardado ainda. Eles entram aqui quando o "
+              "Agente 02 encontra concorrentes reais na internet.</div>")
+    st = _BASE_STATUS
+    corpo = ("<p><a href='/painel'>← Painel</a></p><h1>Base de concorrentes reais</h1>"
+             f"<p class='sub'>{len(lista)} concorrente(s) encontrados na internet pelo Agente 02, "
+             f"guardados no GitHub (ramo <code>{escape(GITHUB_RAMO)}</code>, arquivo "
+             f"<code>{ARQUIVO_BASE}</code>). Informações de trechos públicos; podem estar desatualizadas.</p>"
+             + (f"<p class='erro-box'>Não consegui ler a base: {escape(erro)}</p>" if erro else "")
+             + tabela
+             + f"<p class='sub'>Último salvamento: {escape(st['status'])} {escape(st['quando'])} "
+               f"{escape(st['detalhe'])}</p>")
+    return _pagina("Base de concorrentes", corpo)
+
+
 @mcp.custom_route("/painel", methods=["GET"])
 async def painel(request: Request) -> HTMLResponse:
     linhas = []
@@ -1044,7 +1304,8 @@ async def painel(request: Request) -> HTMLResponse:
                       f'<td class="chips">{"".join(chips)}</td></tr>')
     corpo = ("<h1>Marketing Campaign Commander</h1>"
              "<p class='sub'>Execuções guardadas no servidor MCP. A página atualiza sozinha a cada 10 s.</p>"
-             "<p><a class='botao' href='/painel/novo'>+ Nova rodada no servidor</a></p>"
+             "<p><a class='botao' href='/painel/novo'>+ Nova rodada no servidor</a> "
+             "&nbsp;<a href='/concorrentes'>Base de concorrentes reais →</a></p>"
              "<div class='card'><table><tr><th>Execução</th><th>Empresa</th><th>Agentes</th></tr>"
              + "".join(linhas) + "</table></div>")
     return _pagina("Painel MCP", corpo, atualizar=True)

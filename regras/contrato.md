@@ -96,7 +96,9 @@ margem); riscos; premissas e limitações, com o aviso
   listar_canais_suportados, ler_briefing, ler_saida_agente, verificar_saida.
 - 01 Público: usa as ferramentas de todos.
 - 02 Concorrência: buscar_concorrentes_web (concorrentes reais na internet,
-  com link da fonte); ler_concorrentes como reserva (base fictícia).
+  com link da fonte), ler_historico_concorrentes (reais já encontrados antes)
+  e ler_concorrentes como reserva (base fictícia). Os concorrentes reais
+  entregues ficam guardados numa base no GitHub para análises futuras.
 - 03 Canais: ler_premissas_simulacao (custos de referência) e validar_canais
   (2 a 5 canais da lista fechada).
 - 04 Criativo: verificar_mensagens_criativo (uma mensagem por canal escolhido

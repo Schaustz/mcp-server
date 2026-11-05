@@ -41,8 +41,10 @@ recomenda diferenciais que a empresa do briefing consegue de fato executar."""
 
 INSTRUCOES = """- Leia o briefing (produto_ou_servico, segmento, regiao) e a saída do
   Agente 01 (público).
-- PRIMEIRO busque concorrentes REAIS na internet com buscar_concorrentes_web,
-  numa única chamada com 2 ou 3 consultas curtas em português. Monte as
+- PRIMEIRO, na mesma resposta, chame buscar_concorrentes_web (concorrentes
+  REAIS na internet) e ler_historico_concorrentes(segmento=..., regiao=...)
+  com o segmento e a cidade do briefing (concorrentes reais já encontrados em
+  execuções anteriores). Na busca, use 2 ou 3 consultas curtas em português. Monte as
   consultas com o produto, o segmento e a cidade/região do briefing, por
   exemplo: "velas artesanais Campinas", "loja de aromas artesanais
   Instagram", "difusor de ambiente artesanal comprar".
@@ -50,6 +52,10 @@ INSTRUCOES = """- Leia o briefing (produto_ou_servico, segmento, regiao) e a sa�
   lojas, ateliês). Ignore listas genéricas, notícias, marketplaces inteiros e
   sites de dicas. Se o mesmo concorrente aparecer em mais de um link, use o
   link mais direto (site ou perfil da própria marca).
+- Use o histórico para comparar: se um concorrente da busca já apareceu
+  antes, diga na justificativa há quanto tempo ele aparece e a ameaça que
+  recebeu antes. Se a busca de agora trouxer poucas empresas, pode completar
+  com concorrentes do histórico (fonte = um dos links em "fontes").
 - Para cada concorrente real: "tipo": "real" e "fonte" com o link EXATO que a
   ferramenta devolveu. Posicionamento, preço e canais só podem vir do que está
   no trecho; se o trecho não disser o preço ou os canais, diga que não foi
